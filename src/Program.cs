@@ -663,7 +663,7 @@ namespace PasteImageAsFile
             }
 
             Logger.Log("Entering Application.Run() for daemon");
-            Application.Run(new ApplicationContext());
+            Application.Run();
             Logger.Log("Exited Application.Run() for daemon");
 
             GC.KeepAlive(singleInstanceMutex);

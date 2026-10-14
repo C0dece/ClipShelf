@@ -95,18 +95,12 @@ namespace PasteImageAsFile
         static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
         public const string FlyoutEventName = "ClipShelf_ShowFlyout_Event_v1";
-        public const string FlyoutEventNameLegacy = "PasteImageAsFile_ShowFlyout_Event_v1";
         private EventWaitHandle flyoutEvent;
-        private EventWaitHandle flyoutEventLegacy;
         private RegisteredWaitHandle registeredWait;
-        private RegisteredWaitHandle registeredWaitLegacy;
 
         public const string SuperHubEventName = "ClipShelf_ShowSuperHub_Event_v1";
-        public const string SuperHubEventNameLegacy = "PasteImageAsFile_ShowSuperHub_Event_v1";
         private EventWaitHandle superHubEvent;
-        private EventWaitHandle superHubEventLegacy;
         private RegisteredWaitHandle registeredSuperHubWait;
-        private RegisteredWaitHandle registeredSuperHubWaitLegacy;
 
         public string CacheDirectory { get; private set; }
         private string lastAugmentedFile = null;
@@ -143,19 +137,6 @@ namespace PasteImageAsFile
                     }
                 }, null, -1, false);
 
-                try
-                {
-                    bool cnl;
-                    flyoutEventLegacy = new EventWaitHandle(false, EventResetMode.AutoReset, FlyoutEventNameLegacy, out cnl);
-                    registeredWaitLegacy = ThreadPool.RegisterWaitForSingleObject(flyoutEventLegacy, (state, timedOut) => {
-                        if (!timedOut)
-                        {
-                            PostMessage(this.Handle, unchecked((uint)WM_SHOW_FLYOUT), IntPtr.Zero, IntPtr.Zero);
-                        }
-                    }, null, -1, false);
-                }
-                catch {}
-
                 bool createdSuperHub;
                 superHubEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SuperHubEventName, out createdSuperHub);
                 registeredSuperHubWait = ThreadPool.RegisterWaitForSingleObject(superHubEvent, (state, timedOut) => {
@@ -164,19 +145,6 @@ namespace PasteImageAsFile
                         PostMessage(this.Handle, unchecked((uint)WM_SHOW_SUPERHUB), IntPtr.Zero, IntPtr.Zero);
                     }
                 }, null, -1, false);
-
-                try
-                {
-                    bool cshl;
-                    superHubEventLegacy = new EventWaitHandle(false, EventResetMode.AutoReset, SuperHubEventNameLegacy, out cshl);
-                    registeredSuperHubWaitLegacy = ThreadPool.RegisterWaitForSingleObject(superHubEventLegacy, (state, timedOut) => {
-                        if (!timedOut)
-                        {
-                            PostMessage(this.Handle, unchecked((uint)WM_SHOW_SUPERHUB), IntPtr.Zero, IntPtr.Zero);
-                        }
-                    }, null, -1, false);
-                }
-                catch {}
             }
             catch (Exception ex)
             {
