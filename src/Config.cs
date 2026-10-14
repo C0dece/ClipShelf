@@ -183,7 +183,16 @@ namespace PasteImageAsFile
 
         public static string ClipboardClickAction
         {
-            get { return GetString("ClipboardClickAction", "Paste"); }
+            get
+            {
+                if (GetDword("ClipboardPasteDefaultV2", 0) == 0)
+                {
+                    SetDword("ClipboardPasteDefaultV2", 1);
+                    SetString("ClipboardClickAction", "Paste");
+                    return "Paste";
+                }
+                return GetString("ClipboardClickAction", "Paste");
+            }
             set { SetString("ClipboardClickAction", value); }
         }
 
@@ -191,6 +200,12 @@ namespace PasteImageAsFile
         {
             get { return GetString("AccentColor", ""); }
             set { SetString("AccentColor", value ?? ""); }
+        }
+
+        public static string SuperHubAccentColor
+        {
+            get { return GetString("SuperHubAccentColor", "#10B981"); }
+            set { SetString("SuperHubAccentColor", string.IsNullOrEmpty(value) ? "#10B981" : value); }
         }
 
         public static int LastActiveFlyoutTab
@@ -245,6 +260,49 @@ namespace PasteImageAsFile
         {
             get { return Math.Max(160, Math.Min(600, GetDword("SuperHubHeightHorizontal", 220))); }
             set { SetDword("SuperHubHeightHorizontal", Math.Max(160, Math.Min(600, value))); }
+        }
+
+        public static bool SuperHubSplitMarker
+        {
+            get { return GetDword("SuperHubSplitMarker", 1) == 1; }
+            set { SetDword("SuperHubSplitMarker", value ? 1 : 0); }
+        }
+
+        public static string ClipboardHotkey
+        {
+            get { return GetString("ClipboardHotkey", "Win+V"); }
+            set { SetString("ClipboardHotkey", value); }
+        }
+
+        public static bool DisableWinClipboardHistory
+        {
+            get { return GetDword("DisableWinClipboardHistory", 0) == 1; }
+            set
+            {
+                SetDword("DisableWinClipboardHistory", value ? 1 : 0);
+                ApplyWindowsClipboardHistorySetting(value);
+            }
+        }
+
+        public static void ApplyWindowsClipboardHistorySetting(bool disable)
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Clipboard"))
+                {
+                    if (key != null)
+                    {
+                        key.SetValue("EnableClipboardHistory", disable ? 0 : 1, RegistryValueKind.DWord);
+                    }
+                }
+            }
+            catch {}
+        }
+
+        public static string SuperHubAddHotkey
+        {
+            get { return GetString("SuperHubAddHotkey", "Ctrl+Alt+C"); }
+            set { SetString("SuperHubAddHotkey", value); }
         }
 
         private static int GetDword(string name, int defaultValue)

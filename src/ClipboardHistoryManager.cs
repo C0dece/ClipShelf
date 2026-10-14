@@ -95,8 +95,12 @@ namespace PasteImageAsFile
         public ClipboardHistoryManager(string filePath)
         {
             this.historyFilePath = filePath;
+            bool hadHistoryFile = !string.IsNullOrEmpty(filePath) && File.Exists(filePath);
             Load();
-            ImportExistingCache();
+            if (!hadHistoryFile)
+            {
+                ImportExistingCache();
+            }
         }
 
         private void ImportExistingCache()
@@ -140,7 +144,7 @@ namespace PasteImageAsFile
                         };
                         lock (fileLock)
                         {
-                            items.Insert(0, it);
+                            items.Add(it);
                         }
                         addedAny = true;
                     }
@@ -148,7 +152,10 @@ namespace PasteImageAsFile
 
                 if (addedAny)
                 {
-                    TrimHistory();
+                    lock (fileLock)
+                    {
+                        TrimHistory();
+                    }
                     Save();
                 }
             }
@@ -606,7 +613,6 @@ namespace PasteImageAsFile
                     if (it.Id == id)
                     {
                         it.IsPinned = !it.IsPinned;
-                        it.IsInSuperHub = it.IsPinned;
                         Save();
                         break;
                     }
@@ -629,6 +635,36 @@ namespace PasteImageAsFile
                     }
                 }
             }
+        }
+
+        public bool PromoteCurrentOrLatestToSuperHub()
+        {
+            try
+            {
+                IDataObject data = Clipboard.GetDataObject();
+                if (data != null && AddFromDataObject(data, true))
+                {
+                    return true;
+                }
+            }
+            catch {}
+
+            lock (fileLock)
+            {
+                if (items.Count > 0)
+                {
+                    string curF = Config.SuperHubCurrentFolder;
+                    if (string.IsNullOrEmpty(curF) || string.Equals(curF, "Все", StringComparison.OrdinalIgnoreCase)) curF = "Общее";
+
+                    var latest = items[0];
+                    latest.IsInSuperHub = true;
+                    latest.IsPinned = true;
+                    if (string.IsNullOrEmpty(latest.Folder)) latest.Folder = curF;
+                    Save();
+                    return true;
+                }
+            }
+            return false;
         }
 
         public void DeleteItem(string id)
@@ -691,6 +727,11 @@ namespace PasteImageAsFile
         {
             int max = Config.MaxHistoryItems;
             if (max < 10) max = 50;
+
+            items.Sort((a, b) => {
+                if (a.IsPinned != b.IsPinned) return b.IsPinned.CompareTo(a.IsPinned);
+                return b.Timestamp.CompareTo(a.Timestamp);
+            });
 
             int normalCount = 0;
             for (int i = 0; i < items.Count; i++)
@@ -809,11 +850,50 @@ namespace PasteImageAsFile
 
                 string json = File.ReadAllText(historyFilePath, Encoding.UTF8);
                 int idx = 0;
-                while (true)
+                int len = json.Length;
+                while (idx < len)
                 {
-                    int startObj = json.IndexOf('{', idx);
+                    int startObj = -1;
+                    bool inStr = false;
+                    bool esc = false;
+                    for (int i = idx; i < len; i++)
+                    {
+                        char c = json[i];
+                        if (esc) { esc = false; continue; }
+                        if (c == '\\' && inStr) { esc = true; continue; }
+                        if (c == '\"') { inStr = !inStr; continue; }
+                        if (!inStr && c == '{')
+                        {
+                            startObj = i;
+                            break;
+                        }
+                    }
                     if (startObj < 0) break;
-                    int endObj = json.IndexOf('}', startObj);
+
+                    int endObj = -1;
+                    inStr = false;
+                    esc = false;
+                    int depth = 0;
+                    for (int i = startObj; i < len; i++)
+                    {
+                        char c = json[i];
+                        if (esc) { esc = false; continue; }
+                        if (c == '\\' && inStr) { esc = true; continue; }
+                        if (c == '\"') { inStr = !inStr; continue; }
+                        if (!inStr)
+                        {
+                            if (c == '{') depth++;
+                            else if (c == '}')
+                            {
+                                depth--;
+                                if (depth == 0)
+                                {
+                                    endObj = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     if (endObj < 0) break;
 
                     string objChunk = json.Substring(startObj, endObj - startObj + 1);

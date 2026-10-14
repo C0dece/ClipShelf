@@ -89,6 +89,17 @@ namespace PasteImageAsFile
                 this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             }
 
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                ClipboardFlyoutForm f = this.FindForm() as ClipboardFlyoutForm;
+                if (f != null && f.acrylicBackdrop != null)
+                {
+                    ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
+                    return;
+                }
+                base.OnPaintBackground(e);
+            }
+
             protected override void WndProc(ref Message m)
             {
                 if (m.Msg == WM_NCHITTEST)
@@ -113,6 +124,18 @@ namespace PasteImageAsFile
             public FlyoutTopBarPanel()
             {
                 this.DoubleBuffered = true;
+                this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                ClipboardFlyoutForm f = this.FindForm() as ClipboardFlyoutForm;
+                if (f != null && f.acrylicBackdrop != null)
+                {
+                    ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
+                    return;
+                }
+                base.OnPaintBackground(e);
             }
 
             protected override void WndProc(ref Message m)
@@ -131,6 +154,80 @@ namespace PasteImageAsFile
             }
         }
 
+        private class AcrylicPanel : Panel
+        {
+            public AcrylicPanel()
+            {
+                this.DoubleBuffered = true;
+                this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                ClipboardFlyoutForm f = this.FindForm() as ClipboardFlyoutForm;
+                if (f != null && f.acrylicBackdrop != null)
+                {
+                    ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
+                    return;
+                }
+                base.OnPaintBackground(e);
+            }
+        }
+
+        private class AcrylicFlowPanel : FlowLayoutPanel
+        {
+            public AcrylicFlowPanel()
+            {
+                this.DoubleBuffered = true;
+                this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                ClipboardFlyoutForm f = this.FindForm() as ClipboardFlyoutForm;
+                if (f != null && f.acrylicBackdrop != null)
+                {
+                    ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
+                    return;
+                }
+                base.OnPaintBackground(e);
+            }
+        }
+
+        private class AcrylicCardPanel : Panel
+        {
+            public bool IsCardHovered = false;
+
+            public AcrylicCardPanel()
+            {
+                this.DoubleBuffered = true;
+                this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                ClipboardFlyoutForm f = this.FindForm() as ClipboardFlyoutForm;
+                if (f != null && f.acrylicBackdrop != null)
+                {
+                    ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
+                }
+                else
+                {
+                    e.Graphics.Clear(ThemeHelper.Background);
+                }
+
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Color glassFill = ThemeHelper.IsDarkTheme()
+                    ? Color.FromArgb(IsCardHovered ? 36 : 22, 255, 255, 255)
+                    : Color.FromArgb(IsCardHovered ? 242 : 218, 255, 255, 255);
+                using (var path = CreateRoundedPath(new Rectangle(0, 0, Math.Max(1, this.Width - 1), Math.Max(1, this.Height - 1)), 6))
+                using (var brush = new SolidBrush(glassFill))
+                {
+                    e.Graphics.FillPath(brush, path);
+                }
+            }
+        }
+
         private static bool IsOurAppWindow(IntPtr hWnd)
         {
             if (hWnd == IntPtr.Zero) return false;
@@ -143,6 +240,27 @@ namespace PasteImageAsFile
         public static ClipboardFlyoutForm CurrentInstance { get { return currentInstance; } }
         private static readonly object instanceLock = new object();
 
+        public static bool IsFlyoutOpen
+        {
+            get { return currentInstance != null && !currentInstance.IsDisposed && currentInstance.Visible; }
+        }
+
+        public static void CloseActiveFlyout()
+        {
+            lock (instanceLock)
+            {
+                if (currentInstance != null && !currentInstance.IsDisposed)
+                {
+                    currentInstance.CloseFlyout();
+                }
+            }
+        }
+
+        protected override bool ShowWithoutActivation
+        {
+            get { return true; }
+        }
+
         protected override CreateParams CreateParams
         {
             get
@@ -154,9 +272,24 @@ namespace PasteImageAsFile
             }
         }
 
+        private Bitmap acrylicBackdrop;
+
+        public void UpdateAcrylicBackdrop(Point screenLoc)
+        {
+            try
+            {
+                Bitmap old = acrylicBackdrop;
+                acrylicBackdrop = ThemeHelper.CaptureAcrylicBackdrop(new Rectangle(screenLoc, this.Size));
+                this.BackgroundImage = acrylicBackdrop;
+                if (old != null) old.Dispose();
+            }
+            catch {}
+        }
+
         private IntPtr previousForegroundWindow = IntPtr.Zero;
         private FlyoutTopBarPanel pnlTopBar;
         private Label lblAppHeader;
+        private Label lblSectionTitle;
         private Button btnOpenSettings;
         private Panel pnlMainTabs;
         private Button btnMainClipboard;
@@ -166,8 +299,17 @@ namespace PasteImageAsFile
         private Panel pnlSubBar;
         private Panel pnlSubTabsClip;
         private FlowLayoutPanel flpSubTabs;
-        private int currentFilterIndex = 0; // 0 = Все, 1 = Важное, 2 = Снимки, 3 = Текст, 4 = Ссылки, 5 = Файлы
-        private readonly string[] filterNames = new string[] { "Все", "Важное", "Снимки", "Текст", "Ссылки", "Файлы" };
+        private int currentFilterIndex = 0; // 0 = Все, 1 = Текст, 2 = Снимки, 3 = Ссылки, 4 = Папки, 5 = Файлы, 6 = Закрепленные
+        private readonly string[] filterNames = new string[] {
+            "Переключить режим: Буфер обмена / SuperHub",
+            "Все категории",
+            "Текст",
+            "Снимки",
+            "Ссылки",
+            "Папки",
+            "Файлы",
+            "Закрепленные"
+        };
         private readonly List<Button> filterButtons = new List<Button>();
         private int subTabsScrollX = 0;
         private int foldersScrollX = 0;
@@ -211,6 +353,7 @@ namespace PasteImageAsFile
 
         // Позиционирование и ресайз относительно маркера
         private bool isDockFlyout = false;
+        private bool hasMouseEnteredDock = false;
         private string dockPositionMode = "";
         private int anchorMarkerCenterY = 0;
         private Screen currentDockScreen = null;
@@ -308,6 +451,7 @@ namespace PasteImageAsFile
             this.TopMost = true;
             this.KeyPreview = true;
             this.AllowDrop = true;
+            this.Opacity = 0.96;
 
             toolTip = ThemeHelper.CreateFluentToolTip();
             toolTip.ShowAlways = true;
@@ -354,10 +498,10 @@ namespace PasteImageAsFile
             Logger.Log("Constructor: after ApplyTheme");
 
             this.Deactivate += (s, e) => {
+                // Если окно открыто по горячей клавише (Win+V), НЕ закрываем его при наборе текста в другом окне!
+                if (!isDockFlyout) return;
                 if (isWindowPinned || isShowingModalDialog || isDraggingItemOut || IsGlobalDraggingActive || IsLeftMouseButtonDown()) return;
 
-                // Если курсор мыши все еще находится над окном (или рядом в пределах 36px),
-                // пользователь кликает по элементам, удаляет карточки, вызывает меню - НЕ закрывать!
                 Rectangle b = this.Bounds;
                 b.Inflate(36, 36);
                 if (b.Contains(Cursor.Position)) return;
@@ -381,7 +525,7 @@ namespace PasteImageAsFile
             RegisterSuperHubDropTarget(this);
             Logger.Log("Constructor: after RegisterSuperHubDropTarget");
 
-            // Таймер мягкого автоскрытия при уходе курсора за пределы окна
+            // Таймер мягкого автоскрытия при уходе курсора за пределы боковой полки
             mouseLeaveTimer = new System.Windows.Forms.Timer();
             mouseLeaveTimer.Interval = 100;
             mouseLeaveTimer.Tick += OnMouseLeaveCheckTick;
@@ -397,22 +541,27 @@ namespace PasteImageAsFile
             if (isWindowPinned || isShowingModalDialog || this.IsDisposed || !this.Visible) return;
             if (isDraggingScroll || isDraggingItemOut || IsGlobalDraggingActive || IsLeftMouseButtonDown()) return;
 
+            // Если окно вызвано через Win+V / горячую клавишу (!isDockFlyout), оно НЕ должно закрываться от увода мыши!
+            // Оно закрывается только после выбора элемента для вставки или по крестику / Esc / повторному Win+V.
+            if (!isDockFlyout) return;
+
             Rectangle bounds = this.Bounds;
             bounds.Inflate(36, 36);
 
             Point cur = Cursor.Position;
-            if (!bounds.Contains(cur))
+            if (bounds.Contains(cur))
+            {
+                hasMouseEnteredDock = true;
+                mouseAwayCounter = 0;
+            }
+            else if (hasMouseEnteredDock)
             {
                 mouseAwayCounter++;
-                if (mouseAwayCounter >= 8) // ~800 мс курсор мыши уверенно находится вне окна
+                if (mouseAwayCounter >= 8) // ~800 мс после ухода мыши из боковой полки
                 {
                     mouseAwayCounter = 0;
                     CloseFlyout();
                 }
-            }
-            else
-            {
-                mouseAwayCounter = 0;
             }
         }
 
@@ -424,6 +573,8 @@ namespace PasteImageAsFile
                 DwmSetWindowAttribute(this.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
                 int dark = ThemeHelper.IsDarkTheme() ? 1 : 0;
                 DwmSetWindowAttribute(this.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+                int backdrop = 3; // DWMSBT_TRANSIENTWINDOW (Acrylic)
+                DwmSetWindowAttribute(this.Handle, 38, ref backdrop, sizeof(int));
             }
             catch {}
         }
@@ -497,6 +648,12 @@ namespace PasteImageAsFile
                     }
                 }
                 catch {}
+                if (acrylicBackdrop != null)
+                {
+                    this.BackgroundImage = null;
+                    acrylicBackdrop.Dispose();
+                    acrylicBackdrop = null;
+                }
                 this.Close();
                 this.Dispose();
             }
@@ -515,12 +672,15 @@ namespace PasteImageAsFile
             openTargetLocation = targetPoint;
             openStartPoint = startPoint;
 
-            this.Opacity = 1.0;
+            // Захватываем размытый матовый фон экрана под целевой позицией ДО появления окна
+            UpdateAcrylicBackdrop(targetPoint);
+
+            this.Opacity = 0.96;
             this.Location = startPoint;
             this.Show();
             this.BringToFront();
-            SetForegroundWindow(this.Handle);
-            this.Activate();
+            // Не вызываем SetForegroundWindow(this.Handle) / this.Activate(),
+            // чтобы пользователь мог продолжать печатать в своем активном окне!
             UpdateSubBarLayout();
 
             if (openAnimTimer != null)
@@ -572,6 +732,20 @@ namespace PasteImageAsFile
 
         protected override void WndProc(ref Message m)
         {
+            const int WM_MOUSEACTIVATE = 0x0021;
+            const int MA_NOACTIVATE = 3;
+            if (m.Msg == WM_MOUSEACTIVATE)
+            {
+                // Не перехватываем фокус ввода у целевого окна при клике по карточкам или кнопкам!
+                Point cur = this.PointToClient(Cursor.Position);
+                if (pnlSearch != null && pnlSearch.Visible && pnlSearch.Bounds.Contains(cur))
+                {
+                    base.WndProc(ref m);
+                    return;
+                }
+                m.Result = (IntPtr)MA_NOACTIVATE;
+                return;
+            }
             if (m.Msg == WM_NCHITTEST)
             {
                 base.WndProc(ref m);
@@ -713,25 +887,8 @@ namespace PasteImageAsFile
 
         private void UpdateScrollButtonsVisibility()
         {
-            if (flpSubTabs == null || pnlSubTabsClip == null || currentMainTab != 0)
-            {
-                if (btnSubTabsScrollLeft != null) btnSubTabsScrollLeft.Visible = false;
-                if (btnSubTabsScrollRight != null) btnSubTabsScrollRight.Visible = false;
-                return;
-            }
-            int maxScroll = Math.Max(0, flpSubTabs.Width - pnlSubTabsClip.Width);
-            if (btnSubTabsScrollLeft != null)
-            {
-                btnSubTabsScrollLeft.Visible = (subTabsScrollX < 0);
-                btnSubTabsScrollLeft.Location = new Point(pnlSubTabsClip.Left - 14, 5);
-                btnSubTabsScrollLeft.BringToFront();
-            }
-            if (btnSubTabsScrollRight != null)
-            {
-                btnSubTabsScrollRight.Visible = (maxScroll > 0 && subTabsScrollX > -maxScroll);
-                btnSubTabsScrollRight.Location = new Point(pnlSubTabsClip.Right + 1, 5);
-                btnSubTabsScrollRight.BringToFront();
-            }
+            if (btnSubTabsScrollLeft != null) btnSubTabsScrollLeft.Visible = false;
+            if (btnSubTabsScrollRight != null) btnSubTabsScrollRight.Visible = false;
         }
 
         private void OnFoldersMouseWheel(object sender, MouseEventArgs e)
@@ -761,43 +918,43 @@ namespace PasteImageAsFile
         {
             if (flpSubTabs == null || pnlSubTabsClip == null) return;
             int totalTabsW = 0;
-            bool isCompactWindow = (this.ClientSize.Width < 410);
+            int btnH = 34;
 
-            using (var testFont = new Font("Segoe UI", 8.6f, FontStyle.Bold))
+            for (int i = 0; i < filterButtons.Count; i++)
             {
-                for (int i = 0; i < filterButtons.Count; i++)
-                {
-                    var b = filterButtons[i];
-                    string name = (i < filterNames.Length) ? filterNames[i] : "";
-                    int bw;
-                    if (i == 1 && isCompactWindow)
-                    {
-                        bw = 28; // компактная иконка булавки для Важное
-                    }
-                    else
-                    {
-                        Size sz = TextRenderer.MeasureText(name, testFont);
-                        bw = Math.Max(34, sz.Width + 14);
-                    }
-                    b.Size = new Size(bw, 26);
-                    totalTabsW += bw + 3;
-                }
+                var b = filterButtons[i];
+                int btnW = (i == 1) ? 38 : 34;
+                Padding m = (i == 0) ? new Padding(1, 0, 5, 0) : new Padding(1, 0, 1, 0);
+                b.Size = new Size(btnW, btnH);
+                b.Margin = m;
+                totalTabsW += btnW + m.Left + m.Right;
             }
-            flpSubTabs.Width = totalTabsW + 4;
-            flpSubTabs.Height = 28;
 
-            int maxScroll = Math.Max(0, flpSubTabs.Width - pnlSubTabsClip.Width);
-            if (maxScroll <= 0)
+            flpSubTabs.Width = totalTabsW;
+            flpSubTabs.Height = 36;
+
+            int clipW = pnlSubTabsClip.Width;
+            if (flpSubTabs.Width <= clipW)
             {
-                subTabsScrollX = 0;
+                subTabsScrollX = (clipW - flpSubTabs.Width) / 2;
             }
             else
             {
-                if (subTabsScrollX < -maxScroll) subTabsScrollX = -maxScroll;
-                if (subTabsScrollX > 0) subTabsScrollX = 0;
+                subTabsScrollX = 0;
             }
             flpSubTabs.Left = subTabsScrollX;
             UpdateScrollButtonsVisibility();
+        }
+
+        private string GetCurrentFilterTitle()
+        {
+            if (currentFilterIndex == 1) return "Текст";
+            if (currentFilterIndex == 2) return "Снимки";
+            if (currentFilterIndex == 3) return "Ссылки";
+            if (currentFilterIndex == 4) return "Папки";
+            if (currentFilterIndex == 5) return "Файлы";
+            if (currentFilterIndex == 6) return "Закрепленные";
+            return "Все категории";
         }
 
         private void UpdateSubBarLayout()
@@ -807,26 +964,43 @@ namespace PasteImageAsFile
             int w = this.ClientSize.Width;
             pnlSubBar.Width = w;
 
-            int rightX = w - 12;
+            if (lblAppHeader != null)
+            {
+                lblAppHeader.Text = (currentMainTab == 1) ? "SuperHub" : "Буфер обмена";
+                lblAppHeader.Visible = true;
+                lblAppHeader.Invalidate();
+            }
+            if (pnlTopBar != null) pnlTopBar.Invalidate();
 
-            // 1. Справа всегда кнопка [🗑] Очистить
+            // Обновляем подсказку первой кнопки-переключателя режима
+            if (filterButtons.Count > 0 && toolTip != null)
+            {
+                string modeTip = (currentMainTab == 0)
+                    ? "Режим: Буфер обмена (нажмите для переключения в SuperHub)"
+                    : "Режим: SuperHub (нажмите для переключения в Буфер обмена)";
+                toolTip.SetToolTip(filterButtons[0], modeTip);
+            }
+
+            int rightX = w - 14;
+
+            // 1. Справа иконочная кнопка [🗑️ Очистить все] (26x26)
             if (btnClearAll != null)
             {
                 btnClearAll.Visible = true;
-                btnClearAll.Size = new Size(28, 28);
-                btnClearAll.Location = new Point(rightX - 28, 5);
+                btnClearAll.Size = new Size(26, 26);
+                btnClearAll.Location = new Point(rightX - 26, 5);
                 btnClearAll.BringToFront();
-                rightX -= 34;
+                rightX -= 30;
             }
 
-            // 2. Кнопка [🔍] Поиск
+            // 2. Кнопка [🔍] Поиск (26x26)
             if (btnSearchToggle != null)
             {
                 btnSearchToggle.Visible = true;
-                btnSearchToggle.Size = new Size(28, 28);
-                btnSearchToggle.Location = new Point(rightX - 28, 5);
+                btnSearchToggle.Size = new Size(26, 26);
+                btnSearchToggle.Location = new Point(rightX - 26, 5);
                 btnSearchToggle.BringToFront();
-                rightX -= 34;
+                rightX -= 30;
             }
 
             if (currentMainTab == 0) // Буфер обмена
@@ -836,64 +1010,43 @@ namespace PasteImageAsFile
                 if (btnDropHint != null) btnDropHint.Visible = false;
                 if (pnlFolders != null) pnlFolders.Visible = false;
 
-                // 3. Кнопка действия по клику [📥 / 📋] - ТЕПЕРЬ СПРАВА!
-                if (btnClickAction != null)
+                if (lblSectionTitle != null)
                 {
-                    btnClickAction.Visible = true;
-                    btnClickAction.Size = new Size(28, 28);
-                    btnClickAction.Location = new Point(rightX - 28, 5);
-                    btnClickAction.BringToFront();
-                    rightX -= 34;
-                }
-
-                // Слева: область подтабов буфера обмена (занимает всё оставшееся место)
-                if (pnlSubTabsClip != null)
-                {
-                    pnlSubTabsClip.Visible = true;
-                    pnlSubTabsClip.Location = new Point(8, 4);
-                    int availW = Math.Max(40, rightX - 22);
-                    pnlSubTabsClip.Size = new Size(availW, 30);
-                    pnlSubTabsClip.BringToFront();
-
-                    UpdateSubTabsGeometry();
+                    lblSectionTitle.Text = GetCurrentFilterTitle();
+                    lblSectionTitle.Visible = true;
+                    lblSectionTitle.Location = new Point(16, 6);
+                    lblSectionTitle.Size = new Size(Math.Max(80, rightX - 20), 24);
                 }
             }
             else // SuperHub
             {
-                if (btnClickAction != null) btnClickAction.Visible = false;
-                if (pnlSubTabsClip != null) pnlSubTabsClip.Visible = false;
-                if (btnSubTabsScrollLeft != null) btnSubTabsScrollLeft.Visible = false;
-                if (btnSubTabsScrollRight != null) btnSubTabsScrollRight.Visible = false;
+                if (btnDropHint != null) btnDropHint.Visible = false;
 
-                // В SuperHub справа подсказка [ℹ]
-                if (btnDropHint != null)
-                {
-                    btnDropHint.Visible = (w >= 280);
-                    if (btnDropHint.Visible)
-                    {
-                        btnDropHint.Size = new Size(28, 28);
-                        btnDropHint.Location = new Point(rightX - 28, 5);
-                        btnDropHint.BringToFront();
-                        rightX -= 34;
-                    }
-                }
-
-                // Слева в SuperHub кнопки: [Копия/Перенос] и [+ Текст]
-                int left = 12;
-                if (btnDragMode != null)
-                {
-                    btnDragMode.Visible = true;
-                    btnDragMode.Size = new Size(86, 28);
-                    btnDragMode.Location = new Point(left, 5);
-                    left += btnDragMode.Width + 6;
-                }
-
+                // Компактные иконочные кнопки [+ Заметка] и [Режим Копия/Перенос/Ярлык] справа перед поиском
                 if (btnAddNote != null)
                 {
                     btnAddNote.Visible = true;
-                    btnAddNote.Size = new Size(82, 28);
-                    btnAddNote.Location = new Point(left, 5);
-                    left += btnAddNote.Width + 6;
+                    btnAddNote.Size = new Size(26, 26);
+                    btnAddNote.Location = new Point(rightX - 26, 5);
+                    btnAddNote.BringToFront();
+                    rightX -= 30;
+                }
+
+                if (btnDragMode != null)
+                {
+                    btnDragMode.Visible = true;
+                    btnDragMode.Size = new Size(26, 26);
+                    btnDragMode.Location = new Point(rightX - 26, 5);
+                    btnDragMode.BringToFront();
+                    rightX -= 30;
+                }
+
+                if (lblSectionTitle != null)
+                {
+                    lblSectionTitle.Text = GetCurrentFilterTitle();
+                    lblSectionTitle.Visible = true;
+                    lblSectionTitle.Location = new Point(16, 6);
+                    lblSectionTitle.Size = new Size(Math.Max(70, rightX - 20), 24);
                 }
 
                 if (pnlFolders != null)
@@ -906,6 +1059,14 @@ namespace PasteImageAsFile
                     }
                 }
             }
+
+            if (pnlSubTabsClip != null && pnlMainTabs != null)
+            {
+                pnlSubTabsClip.Visible = true;
+                pnlSubTabsClip.Location = new Point(4, 2);
+                pnlSubTabsClip.Size = new Size(Math.Max(100, w - 8), 36);
+                UpdateSubTabsGeometry();
+            }
         }
 
         private void LayoutControls()
@@ -916,71 +1077,63 @@ namespace PasteImageAsFile
             int w = this.ClientSize.Width;
             int h = this.ClientSize.Height;
 
-            // 1. Шапка окна (TopBar)
+            // 1. Верхняя системная полоса Windows 11 (TopBar) - 32px
             pnlTopBar.Location = new Point(0, 0);
-            pnlTopBar.Size = new Size(w, 38);
-            int rightX = w - 6;
-            if (btnClose != null)
+            pnlTopBar.Size = new Size(w, 32);
+
+            if (btnOpenSettings != null)
             {
-                btnClose.Size = new Size(26, 26);
-                btnClose.Location = new Point(rightX - 26, 6);
-                rightX -= 28;
+                btnOpenSettings.Size = new Size(22, 22);
+                btnOpenSettings.Location = new Point(12, 5);
             }
-            if (btnMinimize != null)
+            if (btnClickAction != null)
             {
-                btnMinimize.Size = new Size(26, 26);
-                btnMinimize.Location = new Point(rightX - 26, 6);
-                rightX -= 28;
+                btnClickAction.Visible = true;
+                btnClickAction.Size = new Size(22, 22);
+                btnClickAction.Location = new Point(w - 84, 5);
             }
             if (btnPinWindow != null)
             {
-                btnPinWindow.Size = new Size(26, 26);
-                btnPinWindow.Location = new Point(rightX - 26, 6);
-                rightX -= 28;
+                btnPinWindow.Size = new Size(22, 22);
+                btnPinWindow.Location = new Point(w - 60, 5);
             }
-            if (btnOpenSettings != null)
+            if (btnMinimize != null)
             {
-                btnOpenSettings.Size = new Size(26, 26);
-                btnOpenSettings.Location = new Point(rightX - 26, 6);
-                rightX -= 28;
+                btnMinimize.Visible = false;
             }
-
             if (lblAppHeader != null)
             {
-                lblAppHeader.Location = new Point(36, 10);
-                lblAppHeader.Size = new Size(Math.Max(120, rightX - 40), 20);
-                lblAppHeader.AutoEllipsis = true;
+                lblAppHeader.Text = (currentMainTab == 1) ? "SuperHub" : "Буфер обмена";
+                lblAppHeader.Visible = true;
+                lblAppHeader.Location = new Point(86, 4);
+                lblAppHeader.Size = new Size(Math.Max(80, w - 172), 24);
+            }
+            if (btnClose != null)
+            {
+                btnClose.Size = new Size(26, 24);
+                btnClose.Location = new Point(w - 34, 4);
             }
 
-            // 2. Главные вкладки (Main Tabs)
+            // 2. Панель плоских иконок категорий (как в Win+V Windows 11) - 40px
             if (pnlMainTabs != null)
             {
-                pnlMainTabs.Location = new Point(0, 38);
-                pnlMainTabs.Size = new Size(w, 36);
-                int tabW = (w - 24) / 2;
-                if (btnMainClipboard != null)
-                {
-                    btnMainClipboard.Location = new Point(12, 2);
-                    btnMainClipboard.Size = new Size(tabW, 32);
-                }
-                if (btnMainSuperHub != null)
-                {
-                    btnMainSuperHub.Location = new Point(12 + tabW, 2);
-                    btnMainSuperHub.Size = new Size(tabW, 32);
-                }
+                pnlMainTabs.Location = new Point(0, 32);
+                pnlMainTabs.Size = new Size(w, 40);
+                if (btnMainClipboard != null) btnMainClipboard.Visible = false;
+                if (btnMainSuperHub != null) btnMainSuperHub.Visible = false;
             }
 
-            // 3. Панель действий (SubBar)
+            // 3. Строка названия фильтра и иконочных кнопок действий (SubBar) - 36px
             if (pnlSubBar != null)
             {
-                pnlSubBar.Location = new Point(0, 74);
-                pnlSubBar.Size = new Size(w, 38);
+                pnlSubBar.Location = new Point(0, 72);
+                pnlSubBar.Size = new Size(w, 36);
                 UpdateSubBarLayout();
             }
 
-            int curY = 112;
+            int curY = 108;
 
-            // Панель папок SuperHub (вкладки в стиле браузера)
+            // Панель папок SuperHub
             if (pnlFolders != null)
             {
                 bool showFolders = (currentMainTab == 1 && Config.SuperHubFoldersEnabled);
@@ -988,9 +1141,9 @@ namespace PasteImageAsFile
                 if (showFolders)
                 {
                     pnlFolders.Location = new Point(0, curY);
-                    pnlFolders.Size = new Size(w, 34);
+                    pnlFolders.Size = new Size(w, 32);
                     if (flpFolders != null) flpFolders.Width = w - 16;
-                    curY += 34;
+                    curY += 32;
                 }
             }
 
@@ -1000,8 +1153,8 @@ namespace PasteImageAsFile
                 pnlSearch.Visible = isSearchOpen || (txtSearch != null && !string.IsNullOrEmpty(txtSearch.Text));
                 if (pnlSearch.Visible)
                 {
-                    pnlSearch.Location = new Point(12, curY);
-                    pnlSearch.Size = new Size(w - 24, 34);
+                    pnlSearch.Location = new Point(14, curY);
+                    pnlSearch.Size = new Size(w - 28, 32);
                     if (searchBoxBg != null)
                     {
                         searchBoxBg.Width = pnlSearch.Width;
@@ -1010,7 +1163,7 @@ namespace PasteImageAsFile
                     {
                         txtSearch.Width = Math.Max(60, searchBoxBg.ClientSize.Width - 36);
                     }
-                    curY += 38;
+                    curY += 36;
                 }
             }
 
@@ -1020,7 +1173,7 @@ namespace PasteImageAsFile
             {
                 pnlViewport.Location = new Point(0, contentTop);
                 pnlViewport.Size = new Size(w, Math.Max(50, h - contentTop - 4));
-                int cardMargin = 12;
+                int cardMargin = 14;
                 int cardW = Math.Max(100, pnlViewport.ClientSize.Width - cardMargin * 2);
 
                 Action<Panel> updateContainerLayout = (pnl) => {
@@ -1037,14 +1190,20 @@ namespace PasteImageAsFile
                             if (sub is Button)
                             {
                                 string tag = sub.Tag != null ? sub.Tag.ToString() : "";
-                                if (tag == "c1_r1") { sub.Left = cardW - 54; sub.Top = 11; }
+                                if (tag == "btn_more") { sub.Left = cardW - 32; sub.Top = 6; }
+                                else if (tag == "btn_pin") { sub.Left = cardW - 32; sub.Top = c.Height - 28; }
+                                else if (tag == "c1_r1") { sub.Left = cardW - 54; sub.Top = 11; }
                                 else if (tag == "c2_r1") { sub.Left = cardW - 27; sub.Top = 11; }
                                 else if (tag == "c1_r2") { sub.Left = cardW - 54; sub.Top = 38; }
                                 else if (tag == "c2_r2") { sub.Left = cardW - 27; sub.Top = 38; }
                             }
+                            else if (sub is Panel && sub.Tag != null && sub.Tag.ToString() == "img_preview")
+                            {
+                                sub.Width = Math.Max(60, cardW - 50);
+                            }
                             else if (sub is Label)
                             {
-                                sub.Width = Math.Max(30, cardW - sub.Left - 58);
+                                sub.Width = Math.Max(30, cardW - sub.Left - 38);
                             }
                         }
                     }
@@ -1072,6 +1231,169 @@ namespace PasteImageAsFile
             catch {}
         }
 
+        private static void DrawTopLeftSystemBoxIcon(Graphics g, Rectangle r, Color col)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var pen = new Pen(col, 1.2f))
+            {
+                int cx = r.X + r.Width / 2;
+                int cy = r.Y + r.Height / 2;
+                g.DrawRectangle(pen, cx - 5, cy - 4, 10, 8);
+                g.DrawLine(pen, cx - 5, cy - 1, cx + 5, cy - 1);
+                g.DrawLine(pen, cx - 1, cy - 1, cx - 1, cy + 4);
+            }
+        }
+
+        private static void DrawMoveModeIcon(Graphics g, Rectangle r, Color col)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float cx = r.X + r.Width / 2f;
+            float cy = r.Y + r.Height / 2f;
+            using (var pen = new Pen(col, 1.4f))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                pen.LineJoin = LineJoin.Round;
+
+                // Контур файла слева и стрелка переноса вправо
+                g.DrawLine(pen, cx - 5.5f, cy - 5f, cx - 1f, cy - 5f);
+                g.DrawLine(pen, cx - 5.5f, cy - 5f, cx - 5.5f, cy + 5f);
+                g.DrawLine(pen, cx - 5.5f, cy + 5f, cx - 1f, cy + 5f);
+
+                g.DrawLine(pen, cx - 2.5f, cy, cx + 5.5f, cy);
+                g.DrawLine(pen, cx + 2f, cy - 3.5f, cx + 5.5f, cy);
+                g.DrawLine(pen, cx + 2f, cy + 3.5f, cx + 5.5f, cy);
+            }
+        }
+
+        private static void DrawAddNoteIcon(Graphics g, Rectangle r, Color col)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float cx = r.X + r.Width / 2f;
+            float cy = r.Y + r.Height / 2f;
+            using (var pen = new Pen(col, 1.35f))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                pen.LineJoin = LineJoin.Round;
+
+                // Страница заметки
+                g.DrawLine(pen, cx - 5.5f, cy - 5.5f, cx + 2.5f, cy - 5.5f);
+                g.DrawLine(pen, cx - 5.5f, cy - 5.5f, cx - 5.5f, cy + 5.5f);
+                g.DrawLine(pen, cx - 5.5f, cy + 5.5f, cx + 0.5f, cy + 5.5f);
+                g.DrawLine(pen, cx + 2.5f, cy - 5.5f, cx + 2.5f, cy - 1.5f);
+
+                // Строки текста внутри заметки
+                g.DrawLine(pen, cx - 3.2f, cy - 2.2f, cx + 0.2f, cy - 2.2f);
+                g.DrawLine(pen, cx - 3.2f, cy + 0.8f, cx - 0.8f, cy + 0.8f);
+
+                // Знак [+] в правом нижнем углу
+                g.DrawLine(pen, cx + 3.5f, cy + 1f, cx + 3.5f, cy + 6f);
+                g.DrawLine(pen, cx + 1f, cy + 3.5f, cx + 6f, cy + 3.5f);
+            }
+        }
+
+        private static void DrawCategoryFlatIcon(Graphics g, Rectangle r, int btnIdx, Color col, bool isSuperHubMode)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float cx = r.X + r.Width / 2f;
+            float cy = r.Y + r.Height / 2f - 1f;
+
+            using (var pen = new Pen(col, 1.4f))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                pen.LineJoin = LineJoin.Round;
+
+                if (btnIdx == 0) // Переключатель режима: Буфер обмена (планшет) <-> SuperHub (куб)
+                {
+                    if (!isSuperHubMode)
+                    {
+                        using (var boardPath = CreateRoundedPath(new Rectangle((int)(cx - 6), (int)(cy - 6), 12, 14), 2))
+                        {
+                            g.DrawPath(pen, boardPath);
+                        }
+                        g.DrawRectangle(pen, cx - 3f, cy - 8f, 6f, 3f);
+                        g.DrawLine(pen, cx - 3f, cy - 1f, cx + 3f, cy - 1f);
+                        g.DrawLine(pen, cx - 3f, cy + 3f, cx + 2f, cy + 3f);
+                    }
+                    else
+                    {
+                        PointF top = new PointF(cx, cy - 7f);
+                        PointF right = new PointF(cx + 6.5f, cy - 3.5f);
+                        PointF bottom = new PointF(cx, cy);
+                        PointF left = new PointF(cx - 6.5f, cy - 3.5f);
+                        PointF bLeft = new PointF(cx - 6.5f, cy + 4f);
+                        PointF bCenter = new PointF(cx, cy + 7.5f);
+                        PointF bRight = new PointF(cx + 6.5f, cy + 4f);
+
+                        g.DrawPolygon(pen, new PointF[] { top, right, bottom, left });
+                        g.DrawLines(pen, new PointF[] { left, bLeft, bCenter, bRight, right });
+                        g.DrawLine(pen, bottom, bCenter);
+                    }
+                }
+                else if (btnIdx == 2) // Текст (filterIdx == 1)
+                {
+                    g.DrawLine(pen, cx - 6f, cy - 5f, cx + 6f, cy - 5f);
+                    g.DrawLine(pen, cx - 6f, cy - 1f, cx + 6f, cy - 1f);
+                    g.DrawLine(pen, cx - 6f, cy + 3f, cx + 3f, cy + 3f);
+                    g.DrawLine(pen, cx - 6f, cy + 7f, cx + 1f, cy + 7f);
+                }
+                else if (btnIdx == 3) // Снимки (filterIdx == 2)
+                {
+                    using (var imgPath = CreateRoundedPath(new Rectangle((int)(cx - 7), (int)(cy - 6), 14, 12), 2))
+                    {
+                        g.DrawPath(pen, imgPath);
+                    }
+                    g.DrawEllipse(pen, cx - 4.2f, cy - 3.5f, 2.6f, 2.6f);
+                    PointF[] mountain = new PointF[] {
+                        new PointF(cx - 5.5f, cy + 5f),
+                        new PointF(cx - 1f, cy + 0.5f),
+                        new PointF(cx + 2f, cy + 3.5f),
+                        new PointF(cx + 4f, cy + 1.5f),
+                        new PointF(cx + 6.5f, cy + 5f)
+                    };
+                    g.DrawLines(pen, mountain);
+                }
+                else if (btnIdx == 4) // Ссылки (filterIdx == 3)
+                {
+                    g.DrawArc(pen, cx - 7f, cy - 3.5f, 7f, 7f, 90, 180);
+                    g.DrawLine(pen, cx - 3.5f, cy - 3.5f, cx - 1f, cy - 3.5f);
+                    g.DrawLine(pen, cx - 3.5f, cy + 3.5f, cx - 1f, cy + 3.5f);
+
+                    g.DrawArc(pen, cx, cy - 3.5f, 7f, 7f, 270, 180);
+                    g.DrawLine(pen, cx + 1f, cy - 3.5f, cx + 3.5f, cy - 3.5f);
+                    g.DrawLine(pen, cx + 1f, cy + 3.5f, cx + 3.5f, cy + 3.5f);
+
+                    g.DrawLine(pen, cx - 2.5f, cy, cx + 2.5f, cy);
+                }
+                else if (btnIdx == 5) // Папки (filterIdx == 4)
+                {
+                    DrawFolderIcon(g, new Rectangle((int)(cx - 7), (int)(cy - 5), 14, 11), col);
+                }
+                else if (btnIdx == 6) // Файлы (filterIdx == 5 — лист документа со срезанным уголком)
+                {
+                    PointF[] docOutline = new PointF[] {
+                        new PointF(cx - 5f, cy - 6.5f),
+                        new PointF(cx + 1.5f, cy - 6.5f),
+                        new PointF(cx + 5f, cy - 3f),
+                        new PointF(cx + 5f, cy + 6.5f),
+                        new PointF(cx - 5f, cy + 6.5f)
+                    };
+                    g.DrawPolygon(pen, docOutline);
+                    g.DrawLines(pen, new PointF[] {
+                        new PointF(cx + 1.5f, cy - 6.5f),
+                        new PointF(cx + 1.5f, cy - 3f),
+                        new PointF(cx + 5f, cy - 3f)
+                    });
+                }
+                else if (btnIdx == 7) // Закрепленные (filterIdx == 6 — наклонная булавка в конце)
+                {
+                    DrawWin11PinIcon(g, new Rectangle((int)(cx - 10), (int)(cy - 10), 20, 20), col, false);
+                }
+            }
+        }
+
         private void BuildUI()
         {
             Logger.Log("BuildUI: start");
@@ -1079,38 +1401,167 @@ namespace PasteImageAsFile
             {
                 this.SuspendLayout();
 
-            // 1. Верхний бар (TopBar) - 38px: заголовок и кнопки окна
+            // 1. Верхний системный бар Windows 11 (TopBar) - 32px
             pnlTopBar = new FlyoutTopBarPanel
             {
                 Location = new Point(0, 0),
-                Size = new Size(this.Width, 38),
+                Size = new Size(this.Width, 32),
                 BackColor = ThemeHelper.HeaderBackground,
                 Cursor = Cursors.SizeAll
             };
             pnlTopBar.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) DragWindow(); };
-            pnlTopBar.Paint += (s, e) => {
-                DrawAppHeaderIcon(e.Graphics, new Rectangle(12, 10, 18, 18));
-            };
 
             lblAppHeader = new Label
             {
-                Text = "PasteImageAsFile",
+                Text = "Буфер обмена",
                 Font = new Font("Segoe UI Semibold", 9.5f),
                 ForeColor = ThemeHelper.TextPrimary,
+                BackColor = Color.Transparent,
                 AutoSize = false,
-                AutoEllipsis = true,
-                Location = new Point(36, 10),
-                Size = new Size(160, 20),
-                Cursor = Cursors.SizeAll
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.SizeAll,
+                Visible = true,
+                Location = new Point(86, 4),
+                Size = new Size(Math.Max(80, this.Width - 172), 24)
             };
             lblAppHeader.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) DragWindow(); };
             pnlTopBar.Controls.Add(lblAppHeader);
 
-            // Кнопка закрытия ✕
+            // Левая верхняя кнопка настроек — чистая иконка шестеренки без обводки
+            btnOpenSettings = new Button
+            {
+                Location = new Point(12, 5),
+                Size = new Size(22, 22),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.HeaderBackground,
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            btnOpenSettings.FlatAppearance.BorderSize = 0;
+            btnOpenSettings.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnOpenSettings.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isGearHover = false;
+            btnOpenSettings.MouseEnter += (s, e) => { isGearHover = true; btnOpenSettings.Invalidate(); };
+            btnOpenSettings.MouseLeave += (s, e) => { isGearHover = false; btnOpenSettings.Invalidate(); };
+            btnOpenSettings.Paint += (s, e) => {
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnOpenSettings, this, acrylicBackdrop);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                if (isGearHover)
+                {
+                    Rectangle r = new Rectangle(0, 0, btnOpenSettings.Width - 1, btnOpenSettings.Height - 1);
+                    using (var path = CreateRoundedPath(r, 4))
+                    using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
+                    {
+                        e.Graphics.FillPath(b, path);
+                    }
+                }
+                DrawGearIcon(e.Graphics, new Rectangle(0, 0, btnOpenSettings.Width, btnOpenSettings.Height), isGearHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+            };
+            btnOpenSettings.Click += (s, e) => { Program.ShowMainForm(); };
+            toolTip.SetToolTip(btnOpenSettings, "Открыть настройки программы");
+            pnlTopBar.Controls.Add(btnOpenSettings);
+
+            // Кнопка закрепить окно на экране (Pin Window) 📌
+            btnPinWindow = new Button
+            {
+                Location = new Point(38, 6),
+                Size = new Size(22, 22),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.HeaderBackground,
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            btnPinWindow.FlatAppearance.BorderSize = 0;
+            btnPinWindow.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnPinWindow.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isPinHover = false;
+            btnPinWindow.MouseEnter += (s, e) => { isPinHover = true; btnPinWindow.Invalidate(); };
+            btnPinWindow.MouseLeave += (s, e) => { isPinHover = false; btnPinWindow.Invalidate(); };
+            btnPinWindow.Paint += (s, e) => {
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnPinWindow, this, acrylicBackdrop);
+                if (isPinHover)
+                {
+                    using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
+                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnPinWindow.Width - 1, btnPinWindow.Height - 1), 4))
+                    {
+                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                        e.Graphics.FillPath(b, p);
+                    }
+                }
+                Color pinColor = isWindowPinned ? ThemeHelper.Accent : (isPinHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                DrawWin11PinIcon(e.Graphics, new Rectangle(0, 0, btnPinWindow.Width, btnPinWindow.Height), pinColor, isWindowPinned);
+            };
+            btnPinWindow.Click += (s, e) => {
+                isWindowPinned = !isWindowPinned;
+                btnPinWindow.Invalidate();
+                toolTip.SetToolTip(btnPinWindow, isWindowPinned ? "Окно закреплено (кликните, чтобы открепить)" : "Закрепить окно поверх всех окон");
+            };
+            toolTip.SetToolTip(btnPinWindow, "Закрепить окно поверх всех окон");
+            pnlTopBar.Controls.Add(btnPinWindow);
+
+            // Кнопка режима клика по карточке [📥 Вставить / 📋 Копия] в верхней панели
+            btnClickAction = new Button
+            {
+                Location = new Point(64, 6),
+                Size = new Size(22, 22),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.HeaderBackground,
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            btnClickAction.FlatAppearance.BorderSize = 0;
+            btnClickAction.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnClickAction.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isClickActionHover = false;
+            btnClickAction.MouseEnter += (s, e) => { isClickActionHover = true; btnClickAction.Invalidate(); };
+            btnClickAction.MouseLeave += (s, e) => { isClickActionHover = false; btnClickAction.Invalidate(); };
+            btnClickAction.Paint += (s, e) => {
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnClickAction, this, acrylicBackdrop);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
+                if (isClickActionHover)
+                {
+                    using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
+                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnClickAction.Width - 1, btnClickAction.Height - 1), 4))
+                    {
+                        e.Graphics.FillPath(b, p);
+                    }
+                }
+                Rectangle iconRect = new Rectangle(2, 2, 18, 18);
+                Color icCol = isClickActionHover ? ThemeHelper.TextPrimary : (isPaste ? ThemeHelper.Accent : ThemeHelper.TextSecondary);
+                if (isPaste) DrawPasteActionIcon(e.Graphics, iconRect, icCol);
+                else DrawCopyIcon(e.Graphics, iconRect, icCol);
+            };
+            btnClickAction.Click += (s, e) => {
+                bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
+                Config.ClipboardClickAction = isPaste ? "Copy" : "Paste";
+                btnClickAction.Invalidate();
+                string tip = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase)
+                    ? "Клик по карточке: Вставить сразу в активное окно [Ctrl+V]"
+                    : "Клик по карточке: Только скопировать в буфер";
+                toolTip.SetToolTip(btnClickAction, tip);
+            };
+            toolTip.SetToolTip(btnClickAction, string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase)
+                ? "Клик по карточке: Вставить сразу в активное окно [Ctrl+V]"
+                : "Клик по карточке: Только скопировать в буфер");
+            pnlTopBar.Controls.Add(btnClickAction);
+
+            // Кнопка свернуть (скрыта в режиме Win11)
+            btnMinimize = new Button
+            {
+                Location = new Point(this.Width - 62, 4),
+                Size = new Size(26, 24),
+                FlatStyle = FlatStyle.Flat,
+                Visible = false,
+                TabStop = false
+            };
+            pnlTopBar.Controls.Add(btnMinimize);
+
+            // Кнопка закрытия ✕ справа вверху
             btnClose = new Button
             {
-                Location = new Point(this.Width - 34, 5),
-                Size = new Size(26, 26),
+                Location = new Point(this.Width - 34, 4),
+                Size = new Size(26, 24),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeHelper.HeaderBackground,
                 Cursor = Cursors.Hand,
@@ -1123,8 +1574,7 @@ namespace PasteImageAsFile
             btnClose.MouseEnter += (s, e) => { isCloseHover = true; btnClose.Invalidate(); };
             btnClose.MouseLeave += (s, e) => { isCloseHover = false; btnClose.Invalidate(); };
             btnClose.Paint += (s, e) => {
-                Color parentBg = (btnClose.Parent != null) ? btnClose.Parent.BackColor : ThemeHelper.HeaderBackground;
-                e.Graphics.Clear(parentBg);
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnClose, this, acrylicBackdrop);
                 if (isCloseHover)
                 {
                     using (var b = new SolidBrush(Color.FromArgb(196, 43, 28)))
@@ -1140,198 +1590,195 @@ namespace PasteImageAsFile
             toolTip.SetToolTip(btnClose, "Закрыть (Esc)");
             pnlTopBar.Controls.Add(btnClose);
 
-            // Кнопка свернуть ─
-            btnMinimize = new Button
-            {
-                Location = new Point(this.Width - 62, 6),
-                Size = new Size(26, 26),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnMinimize.FlatAppearance.BorderSize = 0;
-            btnMinimize.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnMinimize.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isMinHover = false;
-            btnMinimize.MouseEnter += (s, e) => { isMinHover = true; btnMinimize.Invalidate(); };
-            btnMinimize.MouseLeave += (s, e) => { isMinHover = false; btnMinimize.Invalidate(); };
-            btnMinimize.Paint += (s, e) => {
-                Color parentBg = (btnMinimize.Parent != null) ? btnMinimize.Parent.BackColor : ThemeHelper.HeaderBackground;
-                e.Graphics.Clear(parentBg);
-                if (isMinHover)
-                {
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnMinimize.Width - 1, btnMinimize.Height - 1), 4))
-                    {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
-                    }
-                }
-                DrawMinimizeIcon(e.Graphics, new Rectangle(0, 0, btnMinimize.Width, btnMinimize.Height), isMinHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-            };
-            btnMinimize.Click += (s, e) => CloseFlyout();
-            toolTip.SetToolTip(btnMinimize, "Свернуть");
-            pnlTopBar.Controls.Add(btnMinimize);
-
-            // Кнопка закрепить окно на экране (Pin Window) 📌
-            btnPinWindow = new Button
-            {
-                Location = new Point(this.Width - 90, 6),
-                Size = new Size(26, 26),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnPinWindow.FlatAppearance.BorderSize = 0;
-            btnPinWindow.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnPinWindow.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isPinHover = false;
-            btnPinWindow.MouseEnter += (s, e) => { isPinHover = true; btnPinWindow.Invalidate(); };
-            btnPinWindow.MouseLeave += (s, e) => { isPinHover = false; btnPinWindow.Invalidate(); };
-            btnPinWindow.Paint += (s, e) => {
-                Color parentBg = (btnPinWindow.Parent != null) ? btnPinWindow.Parent.BackColor : ThemeHelper.HeaderBackground;
-                e.Graphics.Clear(parentBg);
-                if (isPinHover)
-                {
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnPinWindow.Width - 1, btnPinWindow.Height - 1), 4))
-                    {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
-                    }
-                }
-                Color pinColor = isWindowPinned ? ThemeHelper.Accent : (isPinHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-                DrawPinIcon(e.Graphics, new Rectangle(0, 0, btnPinWindow.Width, btnPinWindow.Height), pinColor, isWindowPinned);
-            };
-            btnPinWindow.Click += (s, e) => {
-                isWindowPinned = !isWindowPinned;
-                btnPinWindow.Invalidate();
-                toolTip.SetToolTip(btnPinWindow, isWindowPinned ? "Окно закреплено (кликните, чтобы открепить)" : "Закрепить окно на экране");
-            };
-            toolTip.SetToolTip(btnPinWindow, "Закрепить окно на экране (не закрывать при клике в другое окно)");
-            pnlTopBar.Controls.Add(btnPinWindow);
-
-            // Кнопка быстрого доступа к настройкам [⚙️]
-            btnOpenSettings = new Button
-            {
-                Location = new Point(this.Width - 118, 6),
-                Size = new Size(26, 26),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnOpenSettings.FlatAppearance.BorderSize = 0;
-            btnOpenSettings.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnOpenSettings.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isGearHover = false;
-            btnOpenSettings.MouseEnter += (s, e) => { isGearHover = true; btnOpenSettings.Invalidate(); };
-            btnOpenSettings.MouseLeave += (s, e) => { isGearHover = false; btnOpenSettings.Invalidate(); };
-            btnOpenSettings.Paint += (s, e) => {
-                Color parentBg = (btnOpenSettings.Parent != null) ? btnOpenSettings.Parent.BackColor : ThemeHelper.HeaderBackground;
-                e.Graphics.Clear(parentBg);
-                if (isGearHover)
-                {
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnOpenSettings.Width - 1, btnOpenSettings.Height - 1), 4))
-                    {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
-                    }
-                }
-                DrawGearIcon(e.Graphics, new Rectangle(0, 0, btnOpenSettings.Width, btnOpenSettings.Height), isGearHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-            };
-            btnOpenSettings.Click += (s, e) => { Program.ShowMainForm(); };
-            toolTip.SetToolTip(btnOpenSettings, "Открыть окно настроек");
-            pnlTopBar.Controls.Add(btnOpenSettings);
-
             this.Controls.Add(pnlTopBar);
 
-            // 2. Панель главных вкладок 1-го уровня (Main Tabs) - 36px
-            pnlMainTabs = new Panel
+            // 2. Панель плоских иконок категорий Windows 11 (MainTabs) - 40px
+            pnlMainTabs = new AcrylicPanel
             {
-                Location = new Point(0, 38),
-                Size = new Size(this.Width, 36),
+                Location = new Point(0, 32),
+                Size = new Size(this.Width, 40),
                 BackColor = ThemeHelper.HeaderBackground,
                 Cursor = Cursors.SizeAll
             };
             pnlMainTabs.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) DragWindow(); };
 
-            // Кнопка [Буфер обмена]
-            btnMainClipboard = new Button
-            {
-                Text = "Буфер обмена",
-                Location = new Point(12, 2),
-                Size = new Size(130, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = ThemeHelper.TextPrimary,
-                Font = new Font("Segoe UI Semibold", 9.8f, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnMainClipboard.FlatAppearance.BorderSize = 0;
-            btnMainClipboard.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnMainClipboard.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            btnMainClipboard.Click += (s, e) => SwitchMainTab(0);
+            btnMainClipboard = new Button { Visible = false };
+            btnMainSuperHub = new Button { Visible = false };
             pnlMainTabs.Controls.Add(btnMainClipboard);
-
-            // Кнопка [SuperHub]
-            btnMainSuperHub = new Button
-            {
-                Text = "SuperHub",
-                Location = new Point(148, 2),
-                Size = new Size(130, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = ThemeHelper.TextSecondary,
-                Font = new Font("Segoe UI Semibold", 9.8f, FontStyle.Regular),
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnMainSuperHub.FlatAppearance.BorderSize = 0;
-            btnMainSuperHub.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnMainSuperHub.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            btnMainSuperHub.Click += (s, e) => SwitchMainTab(1);
             pnlMainTabs.Controls.Add(btnMainSuperHub);
 
-            // Индикатор активной вкладки
-            pnlMainTabs.Paint += (s, e) => {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Button actBtn = (currentMainTab == 0) ? btnMainClipboard : btnMainSuperHub;
-                if (actBtn != null)
+            pnlSubTabsClip = new AcrylicPanel
+            {
+                Location = new Point(4, 2),
+                Size = new Size(Math.Max(100, this.Width - 8), 36),
+                BackColor = Color.Transparent,
+                AutoScroll = false
+            };
+
+            flpSubTabs = new AcrylicFlowPanel
+            {
+                Location = new Point(0, 1),
+                Size = new Size(this.Width, 36),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = false,
+                BackColor = Color.Transparent
+            };
+
+            for (int i = 0; i < filterNames.Length; i++)
+            {
+                int btnIdx = i;
+                Button btnFilter = new Button
                 {
-                    int barW = Math.Max(40, actBtn.Width - 16);
-                    int barX = actBtn.Left + (actBtn.Width - barW) / 2;
-                    using (var brush = new SolidBrush(ThemeHelper.Accent))
-                    using (var path = CreateRoundedPath(new Rectangle(barX, pnlMainTabs.Height - 3, barW, 3), 1))
+                    Size = new Size(btnIdx == 1 ? 38 : 34, 34),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.Transparent,
+                    Cursor = Cursors.Hand,
+                    TabStop = false,
+                    Margin = (btnIdx == 0) ? new Padding(1, 0, 5, 0) : new Padding(1, 0, 1, 0)
+                };
+                btnFilter.FlatAppearance.BorderSize = 0;
+                btnFilter.FlatAppearance.MouseOverBackColor = Color.Transparent;
+                btnFilter.FlatAppearance.MouseDownBackColor = Color.Transparent;
+                bool isFltHover = false;
+                btnFilter.MouseEnter += (s, e) => { isFltHover = true; btnFilter.Invalidate(); };
+                btnFilter.MouseLeave += (s, e) => { isFltHover = false; btnFilter.Invalidate(); };
+                btnFilter.Paint += (s, e) => {
+                    Graphics g = e.Graphics;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    ThemeHelper.DrawAcrylicBackground(g, btnFilter, this, acrylicBackdrop);
+
+                    bool isModeToggle = (btnIdx == 0);
+                    int filterIdx = btnIdx - 1; // 0..6 для кнопок фильтров (btnIdx 1..7)
+                    bool isActive = isModeToggle
+                        ? true
+                        : (currentFilterIndex == filterIdx);
+
+                    if (isFltHover || isActive)
                     {
-                        e.Graphics.FillPath(brush, path);
+                        Rectangle rHover = new Rectangle(1, 2, btnFilter.Width - 3, btnFilter.Height - 7);
+                        using (var path = CreateRoundedPath(rHover, 5))
+                        using (var brush = new SolidBrush(Color.FromArgb(isFltHover ? 42 : 24, 255, 255, 255)))
+                        {
+                            g.FillPath(brush, path);
+                        }
+                    }
+
+                    Color iconCol = isModeToggle
+                        ? (currentMainTab == 1 ? ThemeHelper.SuperHubSecondaryAccent : ThemeHelper.TextPrimary)
+                        : (isActive
+                            ? ThemeHelper.TextPrimary
+                            : (isFltHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary));
+
+                    if (btnIdx == 1) // Фильтр "Все" (filterIdx == 0)
+                    {
+                        using (var f = new Font("Segoe UI Semibold", 8.75f))
+                        using (var b = new SolidBrush(iconCol))
+                        {
+                            var sf = new StringFormat
+                            {
+                                Alignment = StringAlignment.Center,
+                                LineAlignment = StringAlignment.Center
+                            };
+                            g.DrawString("Все", f, b, new RectangleF(0, 0, btnFilter.Width, btnFilter.Height - 4), sf);
+                        }
+                    }
+                    else
+                    {
+                        DrawCategoryFlatIcon(g, new Rectangle(0, 0, btnFilter.Width, btnFilter.Height - 4), btnIdx, iconCol, currentMainTab == 1);
+                    }
+
+                    // Короткая капсула-индикатор под переключателем режима и под активным фильтром
+                    if (isActive)
+                    {
+                        int pillW = (btnIdx == 1) ? 20 : 16;
+                        int pillH = 3;
+                        int pillX = (btnFilter.Width - pillW) / 2;
+                        int pillY = btnFilter.Height - 4;
+                        Color pillCol = (currentMainTab == 1) ? ThemeHelper.SuperHubSecondaryAccent : ThemeHelper.Accent;
+                        using (var pillBrush = new SolidBrush(pillCol))
+                        using (var pillPath = CreateRoundedPath(new Rectangle(pillX, pillY, pillW, pillH), 1))
+                        {
+                            g.FillPath(pillBrush, pillPath);
+                        }
+                    }
+                };
+                btnFilter.Click += (s, e) => {
+                    if (btnIdx == 0)
+                    {
+                        // Клик по первой кнопке переключает Буфер обмена <-> SuperHub (иконка меняется)
+                        SwitchMainTab(currentMainTab == 0 ? 1 : 0);
+                    }
+                    else
+                    {
+                        int filterIdx = btnIdx - 1;
+                        if (filterIdx != 0 && currentFilterIndex == filterIdx)
+                        {
+                            // Повторный клик по активной категории возвращает показ всех элементов («Все»)
+                            SwitchFilter(0);
+                        }
+                        else
+                        {
+                            SwitchFilter(filterIdx);
+                        }
+                    }
+                };
+                btnFilter.MouseWheel += OnSubTabsMouseWheel;
+                toolTip.SetToolTip(btnFilter, filterNames[btnIdx]);
+                filterButtons.Add(btnFilter);
+                flpSubTabs.Controls.Add(btnFilter);
+            }
+
+            flpSubTabs.Paint += (s, e) => {
+                if (filterButtons.Count > 1)
+                {
+                    int sepX = filterButtons[0].Right + 2;
+                    using (var sepPen = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
+                    {
+                        e.Graphics.DrawLine(sepPen, sepX, 8, sepX, 24);
                     }
                 }
-                // Тонкая разделительная линия под вкладками
-                using (var pen = new Pen(ThemeHelper.CardBorder, 1))
-                {
-                    e.Graphics.DrawLine(pen, 0, pnlMainTabs.Height - 1, pnlMainTabs.Width, pnlMainTabs.Height - 1);
-                }
             };
+
+            pnlSubTabsClip.MouseWheel += OnSubTabsMouseWheel;
+            flpSubTabs.MouseWheel += OnSubTabsMouseWheel;
+            pnlSubTabsClip.Controls.Add(flpSubTabs);
+            pnlMainTabs.Controls.Add(pnlSubTabsClip);
+
+            btnSubTabsScrollLeft = new Button { Visible = false };
+            btnSubTabsScrollRight = new Button { Visible = false };
+            pnlMainTabs.Controls.Add(btnSubTabsScrollLeft);
+            pnlMainTabs.Controls.Add(btnSubTabsScrollRight);
+
             this.Controls.Add(pnlMainTabs);
 
-            // 3. Панель действий 2-го уровня (SubBar) - 38px
-            pnlSubBar = new Panel
+            // 3. Строка заголовка активного фильтра и иконочных кнопок действий (SubBar) - 36px
+            pnlSubBar = new AcrylicPanel
             {
-                Location = new Point(0, 74),
-                Size = new Size(this.Width, 38),
+                Location = new Point(0, 72),
+                Size = new Size(this.Width, 36),
                 BackColor = ThemeHelper.Background
             };
 
-            // Кнопка режима копирования / переноса [❐ Копия]
+            lblSectionTitle = new Label
+            {
+                Text = "Все категории",
+                Font = new Font("Segoe UI Semibold", 9.75f),
+                ForeColor = ThemeHelper.TextPrimary,
+                BackColor = Color.Transparent,
+                AutoSize = false,
+                AutoEllipsis = true,
+                Location = new Point(16, 6),
+                Size = new Size(180, 24),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            pnlSubBar.Controls.Add(lblSectionTitle);
+
+            // Иконочная кнопка режима копирования / переноса / ярлыка для SuperHub (26x26)
             btnDragMode = new Button
             {
-                Location = new Point(12, 5),
-                Size = new Size(86, 28),
+                Location = new Point(this.Width - 134, 5),
+                Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeHelper.Background,
                 Cursor = Cursors.Hand,
@@ -1344,59 +1791,29 @@ namespace PasteImageAsFile
             btnDragMode.MouseEnter += (s, e) => { isDragModeHover = true; btnDragMode.Invalidate(); };
             btnDragMode.MouseLeave += (s, e) => { isDragModeHover = false; btnDragMode.Invalidate(); };
             btnDragMode.Paint += (s, e) => {
-                Color parentBg = (btnDragMode.Parent != null) ? btnDragMode.Parent.BackColor : ThemeHelper.Background;
-                e.Graphics.Clear(parentBg);
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnDragMode, this, acrylicBackdrop);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 bool isLink = string.Equals(Config.SuperHubDragMode, "Link", StringComparison.OrdinalIgnoreCase);
                 bool isCopy = !isLink && string.Equals(Config.SuperHubDragMode, "Copy", StringComparison.OrdinalIgnoreCase);
-                bool isMove = !isCopy && !isLink;
                 Rectangle r = new Rectangle(0, 0, btnDragMode.Width - 1, btnDragMode.Height - 1);
-                using (var path = CreateRoundedPath(r, 6))
+                using (var path = CreateRoundedPath(r, 4))
                 {
-                    Color bg;
-                    Color border;
-                    if (isCopy)
-                    {
-                        bg = isDragModeHover ? Color.FromArgb(16, 92, 142) : Color.FromArgb(12, 76, 119);
-                        border = Color.FromArgb(0, 162, 237);
-                    }
-                    else if (isLink)
-                    {
-                        bg = isDragModeHover ? Color.FromArgb(20, 100, 65) : Color.FromArgb(15, 80, 50);
-                        border = Color.FromArgb(40, 180, 100);
-                    }
-                    else
-                    {
-                        bg = isDragModeHover ? Color.FromArgb(110, 60, 20) : Color.FromArgb(80, 44, 15);
-                        border = Color.FromArgb(255, 140, 40);
-                    }
-
+                    Color bg = Color.FromArgb(isDragModeHover ? 44 : 24, 255, 255, 255);
+                    Color border = isCopy
+                        ? Color.FromArgb(isDragModeHover ? 90 : 52, 255, 255, 255)
+                        : (isLink ? ThemeHelper.SuperHubSecondaryAccent : Color.FromArgb(220, 150, 50));
                     using (var brush = new SolidBrush(bg))
-                    {
                         e.Graphics.FillPath(brush, path);
-                    }
-                    using (var pen = new Pen(border, 1.2f))
-                    {
+                    using (var pen = new Pen(border, 1f))
                         e.Graphics.DrawPath(pen, path);
-                    }
                 }
-                // Иконка
-                if (isLink)
-                {
-                    DrawLinkIcon(e.Graphics, new Rectangle(6, 4, 20, 20), Color.White);
-                }
-                else
-                {
-                    DrawCopyIcon(e.Graphics, new Rectangle(6, 4, 20, 20), Color.White);
-                }
-                // Текст
-                string txt = isCopy ? "Копия" : (isLink ? "Ярлык" : "Перенос");
-                using (var f = new Font("Segoe UI Semibold", 8.8f))
-                using (var b = new SolidBrush(Color.White))
-                {
-                    var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString(txt, f, b, new RectangleF(28, 0, btnDragMode.Width - 28, btnDragMode.Height), sf);
-                }
+                Color iconCol = isCopy
+                    ? (isDragModeHover ? ThemeHelper.TextPrimary : ThemeHelper.Accent)
+                    : (isLink ? ThemeHelper.SuperHubSecondaryAccent : Color.FromArgb(255, 175, 65));
+                Rectangle iconRect = new Rectangle(3, 3, 20, 20);
+                if (isCopy) DrawCopyIcon(e.Graphics, iconRect, iconCol);
+                else if (isLink) DrawLinkIcon(e.Graphics, iconRect, iconCol);
+                else DrawMoveModeIcon(e.Graphics, iconRect, iconCol);
             };
             btnDragMode.Click += (s, e) => {
                 string mode = Config.SuperHubDragMode;
@@ -1416,11 +1833,11 @@ namespace PasteImageAsFile
             UpdateDragModeButtonVisual();
             pnlSubBar.Controls.Add(btnDragMode);
 
-            // Кнопка добавления заметки [+ Текст]
+            // Иконочная кнопка добавления заметки [+ Текст] для SuperHub (26x26)
             btnAddNote = new Button
             {
-                Location = new Point(104, 5),
-                Size = new Size(82, 28),
+                Location = new Point(this.Width - 104, 5),
+                Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeHelper.Background,
                 Cursor = Cursors.Hand,
@@ -1433,83 +1850,32 @@ namespace PasteImageAsFile
             btnAddNote.MouseEnter += (s, e) => { isAddNoteHover = true; btnAddNote.Invalidate(); };
             btnAddNote.MouseLeave += (s, e) => { isAddNoteHover = false; btnAddNote.Invalidate(); };
             btnAddNote.Paint += (s, e) => {
-                Color parentBg = (btnAddNote.Parent != null) ? btnAddNote.Parent.BackColor : ThemeHelper.Background;
-                e.Graphics.Clear(parentBg);
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnAddNote, this, acrylicBackdrop);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, btnAddNote.Width - 1, btnAddNote.Height - 1);
-                using (var path = CreateRoundedPath(r, 6))
+                using (var path = CreateRoundedPath(r, 4))
                 {
-                    Color bg = isAddNoteHover ? Color.FromArgb(28, 44, 64) : Color.FromArgb(19, 32, 46);
-                    Color border = isAddNoteHover ? Color.FromArgb(46, 68, 96) : Color.FromArgb(32, 48, 68);
+                    Color bg = Color.FromArgb(isAddNoteHover ? 44 : 24, 255, 255, 255);
+                    Color border = Color.FromArgb(isAddNoteHover ? 90 : 52, 255, 255, 255);
                     using (var brush = new SolidBrush(bg))
-                    {
                         e.Graphics.FillPath(brush, path);
-                    }
                     using (var pen = new Pen(border, 1f))
-                    {
                         e.Graphics.DrawPath(pen, path);
-                    }
                 }
-                // Текст "+ Текст"
-                using (var f = new Font("Segoe UI Semibold", 8.8f))
-                using (var b = new SolidBrush(isAddNoteHover ? Color.White : Color.FromArgb(230, 238, 245)))
-                {
-                    var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("+  Текст", f, b, new RectangleF(0, 0, btnAddNote.Width, btnAddNote.Height), sf);
-                }
+                DrawAddNoteIcon(e.Graphics, new Rectangle(3, 3, 20, 20), isAddNoteHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
             };
             btnAddNote.Click += (s, e) => OpenNewNoteDialog();
             toolTip.SetToolTip(btnAddNote, "Создать текстовую заметку (Ctrl+N)");
             pnlSubBar.Controls.Add(btnAddNote);
 
-            // Кнопка-подсказка возле лупы [ℹ]
-            btnDropHint = new Button
-            {
-                Location = new Point(this.Width - 110, 5),
-                Size = new Size(28, 28),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Background,
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnDropHint.FlatAppearance.BorderSize = 0;
-            btnDropHint.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnDropHint.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isDropHintHover = false;
-            btnDropHint.MouseEnter += (s, e) => { isDropHintHover = true; btnDropHint.Invalidate(); };
-            btnDropHint.MouseLeave += (s, e) => { isDropHintHover = false; btnDropHint.Invalidate(); };
-            btnDropHint.Paint += (s, e) => {
-                Color parentBg = (btnDropHint.Parent != null) ? btnDropHint.Parent.BackColor : ThemeHelper.Background;
-                e.Graphics.Clear(parentBg);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, btnDropHint.Width - 1, btnDropHint.Height - 1);
-                using (var path = CreateRoundedPath(r, 6))
-                {
-                    Color bg = isDropHintHover ? Color.FromArgb(28, 44, 64) : Color.FromArgb(19, 32, 46);
-                    Color border = isDropHintHover ? ThemeHelper.Accent : Color.FromArgb(32, 48, 68);
-                    using (var brush = new SolidBrush(bg))
-                    {
-                        e.Graphics.FillPath(brush, path);
-                    }
-                    using (var pen = new Pen(border, 1f))
-                    {
-                        e.Graphics.DrawPath(pen, path);
-                    }
-                }
-                DrawInfoIcon(e.Graphics, new Rectangle(0, 0, btnDropHint.Width, btnDropHint.Height), isDropHintHover ? ThemeHelper.Accent : ThemeHelper.TextSecondary);
-            };
-            btnDropHint.Click += (s, e) => {
-                toolTip.Show("Перетащите файлы или текст сюда\nИзображения, документы и текст будут сохранены в SuperHub", btnDropHint, 0, btnDropHint.Height + 4, 4000);
-            };
-            toolTip.SetToolTip(btnDropHint, "Перетащите файлы или текст сюда (SuperHub)");
-            RegisterSuperHubDropTarget(btnDropHint);
+            btnDropHint = new Button { Visible = false };
             pnlSubBar.Controls.Add(btnDropHint);
 
-            // Кнопка поиска [🔍] справа
+            // Кнопка поиска [🔍] (26x26)
             btnSearchToggle = new Button
             {
-                Location = new Point(this.Width - 76, 5),
-                Size = new Size(28, 28),
+                Location = new Point(this.Width - 70, 5),
+                Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeHelper.Background,
                 Cursor = Cursors.Hand,
@@ -1522,24 +1888,18 @@ namespace PasteImageAsFile
             btnSearchToggle.MouseEnter += (s, e) => { isSearchHover = true; btnSearchToggle.Invalidate(); };
             btnSearchToggle.MouseLeave += (s, e) => { isSearchHover = false; btnSearchToggle.Invalidate(); };
             btnSearchToggle.Paint += (s, e) => {
-                Color parentBg = (btnSearchToggle.Parent != null) ? btnSearchToggle.Parent.BackColor : ThemeHelper.Background;
-                e.Graphics.Clear(parentBg);
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnSearchToggle, this, acrylicBackdrop);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, btnSearchToggle.Width - 1, btnSearchToggle.Height - 1);
-                using (var path = CreateRoundedPath(r, 6))
+                if (isSearchHover || isSearchOpen)
                 {
-                    Color bg = (isSearchHover || isSearchOpen) ? Color.FromArgb(28, 44, 64) : Color.FromArgb(19, 32, 46);
-                    Color border = (isSearchHover || isSearchOpen) ? ThemeHelper.Accent : Color.FromArgb(32, 48, 68);
-                    using (var brush = new SolidBrush(bg))
+                    Rectangle r = new Rectangle(0, 0, btnSearchToggle.Width - 1, btnSearchToggle.Height - 1);
+                    using (var path = CreateRoundedPath(r, 4))
+                    using (var brush = new SolidBrush(Color.FromArgb(42, 255, 255, 255)))
                     {
                         e.Graphics.FillPath(brush, path);
                     }
-                    using (var pen = new Pen(border, 1f))
-                    {
-                        e.Graphics.DrawPath(pen, path);
-                    }
                 }
-                DrawSearchIcon(e.Graphics, new Rectangle(0, 0, btnSearchToggle.Width, btnSearchToggle.Height), (isSearchHover || isSearchOpen) ? ThemeHelper.Accent : ThemeHelper.TextSecondary);
+                DrawSearchIcon(e.Graphics, new Rectangle(0, 0, btnSearchToggle.Width, btnSearchToggle.Height), (isSearchHover || isSearchOpen) ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
             };
             btnSearchToggle.Click += (s, e) => {
                 isSearchOpen = !isSearchOpen;
@@ -1547,17 +1907,19 @@ namespace PasteImageAsFile
                 LayoutControls();
                 if (isSearchOpen && txtSearch != null)
                 {
+                    SetForegroundWindow(this.Handle);
+                    this.Activate();
                     txtSearch.Focus();
                 }
             };
             toolTip.SetToolTip(btnSearchToggle, "Поиск по буферу и файлам");
             pnlSubBar.Controls.Add(btnSearchToggle);
 
-            // Кнопка очистки [🗑] справа
+            // Иконочная кнопка [🗑️ Очистить все] справа (26x26)
             btnClearAll = new Button
             {
-                Location = new Point(this.Width - 42, 5),
-                Size = new Size(28, 28),
+                Location = new Point(this.Width - 40, 5),
+                Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeHelper.Background,
                 Cursor = Cursors.Hand,
@@ -1570,52 +1932,50 @@ namespace PasteImageAsFile
             btnClearAll.MouseEnter += (s, e) => { isClearHover = true; btnClearAll.Invalidate(); };
             btnClearAll.MouseLeave += (s, e) => { isClearHover = false; btnClearAll.Invalidate(); };
             btnClearAll.Paint += (s, e) => {
-                Color parentBg = (btnClearAll.Parent != null) ? btnClearAll.Parent.BackColor : ThemeHelper.Background;
-                e.Graphics.Clear(parentBg);
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnClearAll, this, acrylicBackdrop);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, btnClearAll.Width - 1, btnClearAll.Height - 1);
-                using (var path = CreateRoundedPath(r, 6))
+                if (isConfirmingClear || isClearHover)
                 {
-                    Color bg = isConfirmingClear
-                        ? Color.FromArgb(196, 43, 28)
-                        : (isClearHover ? Color.FromArgb(28, 44, 64) : Color.FromArgb(19, 32, 46));
-                    Color border = isConfirmingClear
-                        ? Color.FromArgb(230, 50, 40)
-                        : (isClearHover ? Color.FromArgb(46, 68, 96) : Color.FromArgb(32, 48, 68));
-                    using (var brush = new SolidBrush(bg))
+                    using (var path = CreateRoundedPath(r, 4))
                     {
-                        e.Graphics.FillPath(brush, path);
-                    }
-                    using (var pen = new Pen(border, 1f))
-                    {
-                        e.Graphics.DrawPath(pen, path);
-                    }
-                }
-                if (isConfirmingClear)
-                {
-                    using (var f = new Font("Segoe UI", 9.5f, FontStyle.Bold))
-                    using (var b = new SolidBrush(Color.White))
-                    {
-                        var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        e.Graphics.DrawString("?", f, b, new RectangleF(0, 0, btnClearAll.Width, btnClearAll.Height), sf);
+                        Color bg = isConfirmingClear
+                            ? Color.FromArgb(196, 43, 28)
+                            : Color.FromArgb(44, 255, 255, 255);
+                        Color border = isConfirmingClear
+                            ? Color.FromArgb(230, 50, 40)
+                            : Color.FromArgb(80, 255, 255, 255);
+                        using (var brush = new SolidBrush(bg))
+                        {
+                            e.Graphics.FillPath(brush, path);
+                        }
+                        using (var pen = new Pen(border, 1f))
+                        {
+                            e.Graphics.DrawPath(pen, path);
+                        }
                     }
                 }
-                else
-                {
-                    DrawTrashIcon(e.Graphics, new Rectangle(0, 0, btnClearAll.Width, btnClearAll.Height), isClearHover ? Color.White : ThemeHelper.TextSecondary);
-                }
+                Color trashCol = isConfirmingClear
+                    ? Color.White
+                    : (isClearHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                DrawTrashIcon(e.Graphics, new Rectangle(0, 0, btnClearAll.Width, btnClearAll.Height), trashCol);
             };
 
             Action resetClearButton = () => {
                 isConfirmingClear = false;
                 if (clearConfirmTimer != null) clearConfirmTimer.Stop();
-                btnClearAll.Invalidate();
+                if (toolTip != null && btnClearAll != null)
+                {
+                    toolTip.SetToolTip(btnClearAll, "Очистить все (кроме закрепленных)");
+                }
+                if (btnClearAll != null) btnClearAll.Invalidate();
             };
 
             btnClearAll.Click += (s, e) => {
                 if (!isConfirmingClear)
                 {
                     isConfirmingClear = true;
+                    toolTip.SetToolTip(btnClearAll, "Нажмите еще раз для подтверждения очистки");
                     btnClearAll.Invalidate();
                     if (clearConfirmTimer == null)
                     {
@@ -1633,284 +1993,24 @@ namespace PasteImageAsFile
                 ClipboardHistoryManager.Instance.ClearAll(null, isHubTab);
                 RefreshItems();
             };
-            toolTip.SetToolTip(btnClearAll, "Очистить список (повторный клик подтверждает)");
+            toolTip.SetToolTip(btnClearAll, "Очистить все (кроме закрепленных)");
             pnlSubBar.Controls.Add(btnClearAll);
-
-            // Кнопка режима действия для Буфера обмена [📥 Вставить] / [📋 Копия] (размещается справа)
-            btnClickAction = new Button
-            {
-                Size = new Size(28, 28),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Background,
-                Cursor = Cursors.Hand,
-                TabStop = false
-            };
-            btnClickAction.FlatAppearance.BorderSize = 0;
-            btnClickAction.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnClickAction.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isClickActionHover = false;
-            btnClickAction.MouseEnter += (s, e) => { isClickActionHover = true; btnClickAction.Invalidate(); };
-            btnClickAction.MouseLeave += (s, e) => { isClickActionHover = false; btnClickAction.Invalidate(); };
-            btnClickAction.Paint += (s, e) => {
-                Color parentBg = (btnClickAction.Parent != null) ? btnClickAction.Parent.BackColor : ThemeHelper.Background;
-                e.Graphics.Clear(parentBg);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
-                Rectangle r = new Rectangle(0, 0, btnClickAction.Width - 1, btnClickAction.Height - 1);
-                using (var path = CreateRoundedPath(r, 6))
-                {
-                    Color bg = isPaste
-                        ? (isClickActionHover ? Color.FromArgb(16, 92, 142) : Color.FromArgb(12, 76, 119))
-                        : (isClickActionHover ? ThemeHelper.ButtonHover : Color.Transparent);
-                    Color border = isPaste
-                        ? Color.FromArgb(0, 162, 237)
-                        : (isClickActionHover ? ThemeHelper.CardBorder : Color.Transparent);
-
-                    using (var brush = new SolidBrush(bg))
-                    {
-                        e.Graphics.FillPath(brush, path);
-                    }
-                    if (isPaste || isClickActionHover)
-                    {
-                        using (var pen = new Pen(border, 1.2f))
-                        {
-                            e.Graphics.DrawPath(pen, path);
-                        }
-                    }
-                }
-                Rectangle iconRect = new Rectangle((btnClickAction.Width - 18) / 2, (btnClickAction.Height - 18) / 2, 18, 18);
-                if (isPaste)
-                {
-                    DrawPasteActionIcon(e.Graphics, iconRect, Color.White);
-                }
-                else
-                {
-                    DrawCopyIcon(e.Graphics, iconRect, isClickActionHover ? Color.White : ThemeHelper.TextSecondary);
-                }
-            };
-            btnClickAction.Click += (s, e) => {
-                bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
-                Config.ClipboardClickAction = isPaste ? "Copy" : "Paste";
-                btnClickAction.Invalidate();
-                string tip = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase)
-                    ? "Клик по карточке: Вставить сразу в активное окно [Ctrl+V]"
-                    : "Клик по карточке: Только скопировать в буфер";
-                toolTip.SetToolTip(btnClickAction, tip);
-            };
-            toolTip.SetToolTip(btnClickAction, string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase)
-                ? "Клик по карточке: Вставить сразу в активное окно [Ctrl+V]"
-                : "Клик по карточке: Только скопировать в буфер");
-            pnlSubBar.Controls.Add(btnClickAction);
-
-            // Подтабы фильтрации буфера: [Все] [Важное] [Снимки] [Текст] [Ссылки] [Файлы]
-            pnlSubTabsClip = new Panel
-            {
-                Location = new Point(8, 4),
-                Size = new Size(Math.Max(50, this.Width - 120), 30),
-                BackColor = Color.Transparent,
-                AutoScroll = false
-            };
-
-            flpSubTabs = new FlowLayoutPanel
-            {
-                Location = new Point(0, 1),
-                Size = new Size(this.Width, 28),
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                AutoScroll = false,
-                BackColor = Color.Transparent
-            };
-
-            for (int i = 0; i < filterNames.Length; i++)
-            {
-                int filterIdx = i;
-                Button btnFilter = new Button
-                {
-                    Height = 26,
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.Transparent,
-                    Cursor = Cursors.Hand,
-                    TabStop = false,
-                    Margin = new Padding(2, 0, 2, 0)
-                };
-                btnFilter.FlatAppearance.BorderSize = 0;
-                btnFilter.FlatAppearance.MouseOverBackColor = Color.Transparent;
-                btnFilter.FlatAppearance.MouseDownBackColor = Color.Transparent;
-                bool isFltHover = false;
-                btnFilter.MouseEnter += (s, e) => { isFltHover = true; btnFilter.Invalidate(); };
-                btnFilter.MouseLeave += (s, e) => { isFltHover = false; btnFilter.Invalidate(); };
-                btnFilter.Paint += (s, e) => {
-                    Graphics g = e.Graphics;
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
-                    Color clearBg = ThemeHelper.IsDarkTheme() ? ThemeHelper.Background : Color.FromArgb(243, 243, 243);
-                    g.Clear(clearBg);
-                    bool isActive = (currentFilterIndex == filterIdx);
-                    Rectangle r = new Rectangle(0, 0, btnFilter.Width - 1, btnFilter.Height - 1);
-                    using (var path = CreateRoundedPath(r, 6))
-                    {
-                        Color bg = isActive
-                            ? (ThemeHelper.IsDarkTheme() ? Color.FromArgb(28, 48, 72) : Color.FromArgb(232, 240, 252))
-                            : (isFltHover ? ThemeHelper.ButtonHover : Color.Transparent);
-
-                        using (var brush = new SolidBrush(bg))
-                        {
-                            g.FillPath(brush, path);
-                        }
-                        if (isActive)
-                        {
-                            using (var pen = new Pen(ThemeHelper.Accent, 1f))
-                            {
-                                g.DrawPath(pen, path);
-                            }
-                        }
-                        else if (isFltHover)
-                        {
-                            using (var pen = new Pen(ThemeHelper.CardBorder, 1f))
-                            {
-                                g.DrawPath(pen, path);
-                            }
-                        }
-                    }
-
-                    Color textCol = isActive
-                        ? (ThemeHelper.IsDarkTheme() ? Color.White : ThemeHelper.Accent)
-                        : (isFltHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-
-                    if (filterIdx == 1 && btnFilter.Width <= 34)
-                    {
-                        Rectangle pinRect = new Rectangle((btnFilter.Width - 14) / 2, (btnFilter.Height - 14) / 2, 14, 14);
-                        DrawPinIcon(g, pinRect, textCol, isActive);
-                    }
-                    else
-                    {
-                        using (var f = new Font("Segoe UI", 8.6f, isActive ? FontStyle.Bold : FontStyle.Regular))
-                        using (var b = new SolidBrush(textCol))
-                        {
-                            var sf = new StringFormat
-                            {
-                                Alignment = StringAlignment.Center,
-                                LineAlignment = StringAlignment.Center,
-                                FormatFlags = StringFormatFlags.NoWrap
-                            };
-                            g.DrawString(filterNames[filterIdx], f, b, new RectangleF(0, 0, btnFilter.Width, btnFilter.Height), sf);
-                        }
-                    }
-                };
-                btnFilter.Click += (s, e) => SwitchFilter(filterIdx);
-                btnFilter.MouseWheel += OnSubTabsMouseWheel;
-                if (i == 1) toolTip.SetToolTip(btnFilter, "Закрепленные карточки (Важное)");
-                filterButtons.Add(btnFilter);
-                flpSubTabs.Controls.Add(btnFilter);
-            }
-
-            pnlSubTabsClip.MouseWheel += OnSubTabsMouseWheel;
-            flpSubTabs.MouseWheel += OnSubTabsMouseWheel;
-            pnlSubTabsClip.Controls.Add(flpSubTabs);
-            pnlSubBar.Controls.Add(pnlSubTabsClip);
-
-            // Кнопки прокрутки подтабов (появляются при нехватке места)
-            btnSubTabsScrollLeft = new Button
-            {
-                Size = new Size(14, 26),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                TabStop = false,
-                Visible = false
-            };
-            btnSubTabsScrollLeft.FlatAppearance.BorderSize = 0;
-            btnSubTabsScrollLeft.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnSubTabsScrollLeft.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isScrollLHov = false;
-            btnSubTabsScrollLeft.MouseEnter += (s, e) => { isScrollLHov = true; btnSubTabsScrollLeft.Invalidate(); };
-            btnSubTabsScrollLeft.MouseLeave += (s, e) => { isScrollLHov = false; btnSubTabsScrollLeft.Invalidate(); };
-            btnSubTabsScrollLeft.Paint += (s, e) => {
-                Graphics g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                Color clearBg = ThemeHelper.IsDarkTheme() ? ThemeHelper.Background : Color.FromArgb(243, 243, 243);
-                g.Clear(clearBg);
-                if (isScrollLHov)
-                {
-                    Rectangle r = new Rectangle(0, 0, btnSubTabsScrollLeft.Width - 1, btnSubTabsScrollLeft.Height - 1);
-                    using (var path = CreateRoundedPath(r, 4))
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                        g.FillPath(b, path);
-                }
-                using (var p = new Pen(isScrollLHov ? ThemeHelper.Accent : ThemeHelper.TextSecondary, 1.4f))
-                {
-                    int cx = btnSubTabsScrollLeft.Width / 2;
-                    int cy = btnSubTabsScrollLeft.Height / 2;
-                    g.DrawLine(p, cx + 2, cy - 4, cx - 2, cy);
-                    g.DrawLine(p, cx - 2, cy, cx + 2, cy + 4);
-                }
-            };
-            btnSubTabsScrollLeft.Click += (s, e) => {
-                subTabsScrollX += 60;
-                if (subTabsScrollX > 0) subTabsScrollX = 0;
-                flpSubTabs.Left = subTabsScrollX;
-                UpdateScrollButtonsVisibility();
-            };
-            pnlSubBar.Controls.Add(btnSubTabsScrollLeft);
-
-            btnSubTabsScrollRight = new Button
-            {
-                Size = new Size(14, 26),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                TabStop = false,
-                Visible = false
-            };
-            btnSubTabsScrollRight.FlatAppearance.BorderSize = 0;
-            btnSubTabsScrollRight.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnSubTabsScrollRight.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isScrollRHov = false;
-            btnSubTabsScrollRight.MouseEnter += (s, e) => { isScrollRHov = true; btnSubTabsScrollRight.Invalidate(); };
-            btnSubTabsScrollRight.MouseLeave += (s, e) => { isScrollRHov = false; btnSubTabsScrollRight.Invalidate(); };
-            btnSubTabsScrollRight.Paint += (s, e) => {
-                Graphics g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                Color clearBg = ThemeHelper.IsDarkTheme() ? ThemeHelper.Background : Color.FromArgb(243, 243, 243);
-                g.Clear(clearBg);
-                if (isScrollRHov)
-                {
-                    Rectangle r = new Rectangle(0, 0, btnSubTabsScrollRight.Width - 1, btnSubTabsScrollRight.Height - 1);
-                    using (var path = CreateRoundedPath(r, 4))
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                        g.FillPath(b, path);
-                }
-                using (var p = new Pen(isScrollRHov ? ThemeHelper.Accent : ThemeHelper.TextSecondary, 1.4f))
-                {
-                    int cx = btnSubTabsScrollRight.Width / 2;
-                    int cy = btnSubTabsScrollRight.Height / 2;
-                    g.DrawLine(p, cx - 2, cy - 4, cx + 2, cy);
-                    g.DrawLine(p, cx + 2, cy, cx - 2, cy + 4);
-                }
-            };
-            btnSubTabsScrollRight.Click += (s, e) => {
-                int maxScroll = Math.Max(0, flpSubTabs.Width - pnlSubTabsClip.Width);
-                subTabsScrollX -= 60;
-                if (subTabsScrollX < -maxScroll) subTabsScrollX = -maxScroll;
-                flpSubTabs.Left = subTabsScrollX;
-                UpdateScrollButtonsVisibility();
-            };
-            pnlSubBar.Controls.Add(btnSubTabsScrollRight);
 
             this.Controls.Add(pnlSubBar);
 
             // Панель папок SuperHub (вкладки в стиле браузера)
-            pnlFolders = new Panel
+            pnlFolders = new AcrylicPanel
             {
-                Location = new Point(0, 112),
-                Size = new Size(this.Width, 34),
+                Location = new Point(0, 108),
+                Size = new Size(this.Width, 32),
                 BackColor = ThemeHelper.Background,
                 Visible = (currentMainTab == 1 && Config.SuperHubFoldersEnabled)
             };
 
-            flpFolders = new FlowLayoutPanel
+            flpFolders = new AcrylicFlowPanel
             {
                 Location = new Point(8, 3),
-                Size = new Size(this.Width - 16, 28),
+                Size = new Size(this.Width - 16, 26),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 AutoScroll = false,
@@ -1922,12 +2022,10 @@ namespace PasteImageAsFile
             this.Controls.Add(pnlFolders);
             RebuildFolderTabs();
 
-
-
             // 4. Строка поиска (Search Bar) - 34px
-            pnlSearch = new Panel
+            pnlSearch = new AcrylicPanel
             {
-                Location = new Point(0, 106),
+                Location = new Point(0, 108),
                 Size = new Size(this.Width, 34),
                 BackColor = Color.FromArgb(31, 31, 31),
                 Padding = new Padding(12, 2, 12, 4)
@@ -1952,6 +2050,11 @@ namespace PasteImageAsFile
                     e.Graphics.DrawLine(iconPen, 15.5f, 14.5f, 19.5f, 18.5f);
                 }
             };
+            searchBoxBg.MouseDown += (s, e) => {
+                SetForegroundWindow(this.Handle);
+                this.Activate();
+                if (txtSearch != null) txtSearch.Focus();
+            };
 
             txtSearch = new TextBox
             {
@@ -1962,11 +2065,16 @@ namespace PasteImageAsFile
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 9f)
             };
+            txtSearch.MouseDown += (s, e) => {
+                SetForegroundWindow(this.Handle);
+                this.Activate();
+                txtSearch.Focus();
+            };
             searchDebounceTimer = new System.Windows.Forms.Timer();
             searchDebounceTimer.Interval = 120;
             searchDebounceTimer.Tick += (s, e) => {
                 searchDebounceTimer.Stop();
-                ApplyFilterToClipboardContainer();
+                ApplyFilterToAllContainers();
             };
             txtSearch.TextChanged += (s, e) => {
                 searchDebounceTimer.Stop();
@@ -1988,7 +2096,7 @@ namespace PasteImageAsFile
                 AllowDrop = true
             };
 
-            cardsContainerClipboard = new DoubleBufferedPanel
+            cardsContainerClipboard = new AcrylicPanel
             {
                 Location = new Point(12, 0),
                 Width = pnlViewport.Width - 24,
@@ -1996,7 +2104,7 @@ namespace PasteImageAsFile
                 AutoSize = false,
                 Visible = true
             };
-            cardsContainerSuperHub = new DoubleBufferedPanel
+            cardsContainerSuperHub = new AcrylicPanel
             {
                 Location = new Point(12, 0),
                 Width = pnlViewport.Width - 24,
@@ -2037,9 +2145,9 @@ namespace PasteImageAsFile
 
             this.Controls.Add(pnlViewport);
 
-            // Внешняя тонкая рамка 1px вокруг формы
+            // Внешняя тонкая рамка 1px вокруг формы (полупрозрачная стеклянная грань Win11)
             this.Paint += (s, e) => {
-                using (var pen = new Pen(ThemeHelper.CardBorder, 1))
+                using (var pen = new Pen(Color.FromArgb(65, 255, 255, 255), 1))
                 {
                     e.Graphics.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
                 }
@@ -2058,26 +2166,18 @@ namespace PasteImageAsFile
         private void UpdateDragModeButtonVisual()
         {
             if (btnDragMode == null) return;
+            btnDragMode.Text = "";
             bool isCopy = string.Equals(Config.SuperHubDragMode, "Copy", StringComparison.OrdinalIgnoreCase);
             if (isCopy)
             {
-                btnDragMode.Text = "Копия";
-                btnDragMode.BackColor = ThemeHelper.AccentBackground;
-                btnDragMode.ForeColor = ThemeHelper.Accent;
                 toolTip.SetToolTip(btnDragMode, "Режим Drag-and-Drop: КОПИРОВАНИЕ файлов.\nПри перетаскивании наружу исходные файлы остаются на месте.\nКликните для переключения в режим Переноса.");
             }
             else if (string.Equals(Config.SuperHubDragMode, "Link", StringComparison.OrdinalIgnoreCase))
             {
-                btnDragMode.Text = "Ярлык";
-                btnDragMode.BackColor = Color.FromArgb(15, 80, 50);
-                btnDragMode.ForeColor = Color.FromArgb(40, 180, 100);
                 toolTip.SetToolTip(btnDragMode, "Режим Drag-and-Drop: ЯРЛЫК.\nПри перетаскивании создаётся ярлык (.lnk) на исходный файл.\nКликните для переключения в режим Копирования.");
             }
             else
             {
-                btnDragMode.Text = "Перенос";
-                btnDragMode.BackColor = Color.FromArgb(80, 50, 20);
-                btnDragMode.ForeColor = Color.FromArgb(255, 170, 60);
                 toolTip.SetToolTip(btnDragMode, "Режим Drag-and-Drop: ПЕРЕМЕЩЕНИЕ файлов.\nПри перетаскивании наружу файлы переносятся (вырезаются).\nКликните для переключения в режим Ярлыка.");
             }
         }
@@ -2098,6 +2198,7 @@ namespace PasteImageAsFile
             {
                 scrollY = newY;
                 cardsContainer.Top = -scrollY;
+                cardsContainer.Invalidate(true);
                 pnlViewport.Invalidate();
             }
         }
@@ -2324,6 +2425,10 @@ namespace PasteImageAsFile
                     PopulateContainer(cardsContainerSuperHub, true);
                     superHubNeedsRefresh = false;
                 }
+                else
+                {
+                    ApplyFilterToContainer(cardsContainerSuperHub, true);
+                }
             }
             else
             {
@@ -2332,6 +2437,10 @@ namespace PasteImageAsFile
                     PopulateContainer(cardsContainerClipboard, false);
                     clipboardNeedsRefresh = false;
                 }
+                else
+                {
+                    ApplyFilterToContainer(cardsContainerClipboard, false);
+                }
             }
             UpdateContainerScroll();
         }
@@ -2339,46 +2448,97 @@ namespace PasteImageAsFile
         public void SwitchFilter(int filterIndex)
         {
             currentFilterIndex = filterIndex;
+            scrollY = 0;
             UpdateTabsVisual();
-            ApplyFilterToClipboardContainer();
+            ApplyFilterToAllContainers();
         }
 
-        private void ApplyFilterToClipboardContainer()
+        private void ApplyFilterToAllContainers()
         {
-            if (cardsContainerClipboard == null) return;
-            cardsContainerClipboard.SuspendLayout();
+            ApplyFilterToContainer(cardsContainerClipboard, false);
+            ApplyFilterToContainer(cardsContainerSuperHub, true);
+        }
+
+        private static bool IsImageFilePath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            string ext = SafeGetExtension(path).ToLowerInvariant();
+            return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".bmp" || ext == ".webp";
+        }
+
+        private void ApplyFilterToContainer(Panel container, bool isHub)
+        {
+            if (container == null) return;
+            container.SuspendLayout();
 
             string search = (txtSearch != null) ? txtSearch.Text.Trim() : null;
 
             int cardY = 4;
-            int cardW = cardsContainerClipboard.Width;
+            int cardW = container.Width;
             int visibleCount = 0;
+            int totalItemsCount = 0;
+            Label emptyFilterLbl = null;
 
-            foreach (Control c in cardsContainerClipboard.Controls)
+            foreach (Control c in container.Controls)
             {
+                if (c is Label && string.Equals(c.Tag as string, "empty_filter_label", StringComparison.Ordinal))
+                {
+                    emptyFilterLbl = (Label)c;
+                    continue;
+                }
+
                 ClipboardItem item = c.Tag as ClipboardItem;
-                if (item == null) continue; // Пустое сообщение или служебный контрол
+                if (item == null) continue;
+                totalItemsCount++;
 
                 bool matches = true;
-                if (currentFilterIndex == 1) // Важное (Закрепленные)
-                {
-                    if (!item.IsPinned) matches = false;
-                }
-                else if (currentFilterIndex == 2) // Снимки
-                {
-                    if (item.Type != ClipboardItemType.Image) matches = false;
-                }
-                else if (currentFilterIndex == 3) // Текст
+                if (currentFilterIndex == 1) // Текст
                 {
                     if (item.Type != ClipboardItemType.Text || ClipboardHistoryManager.IsUrl(item.TextContent)) matches = false;
                 }
-                else if (currentFilterIndex == 4) // Ссылки
+                else if (currentFilterIndex == 2) // Снимки
+                {
+                    bool isImg = (item.Type == ClipboardItemType.Image);
+                    if (!isImg && item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (IsImageFilePath(f)) { isImg = true; break; }
+                        }
+                    }
+                    if (!isImg) matches = false;
+                }
+                else if (currentFilterIndex == 3) // Ссылки
                 {
                     if (item.Type != ClipboardItemType.Text || !ClipboardHistoryManager.IsUrl(item.TextContent)) matches = false;
                 }
-                else if (currentFilterIndex == 5) // Файлы
+                else if (currentFilterIndex == 4) // Папки
                 {
-                    if (item.Type != ClipboardItemType.Files) matches = false;
+                    bool hasDir = false;
+                    if (item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (SafeDirectoryExists(f)) { hasDir = true; break; }
+                        }
+                    }
+                    if (!hasDir) matches = false;
+                }
+                else if (currentFilterIndex == 5) // Файлы (обычные файлы, не папки)
+                {
+                    bool hasFile = false;
+                    if (item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (!string.IsNullOrEmpty(f) && !SafeDirectoryExists(f)) { hasFile = true; break; }
+                        }
+                    }
+                    if (!hasFile) matches = false;
+                }
+                else if (currentFilterIndex == 6) // Закрепленные
+                {
+                    if (!item.IsPinned) matches = false;
                 }
 
                 if (matches && !string.IsNullOrEmpty(search))
@@ -2386,6 +2546,7 @@ namespace PasteImageAsFile
                     matches = false;
                     if (item.TextContent != null && item.TextContent.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
                     else if (item.SourceApp != null && item.SourceApp.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.ImagePath != null && item.ImagePath.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
                     else if (item.FilePaths != null)
                     {
                         foreach (var f in item.FilePaths)
@@ -2400,13 +2561,47 @@ namespace PasteImageAsFile
                 {
                     c.Location = new Point(0, cardY);
                     c.Width = cardW;
+                    c.Invalidate();
                     cardY += c.Height + 8;
                     visibleCount++;
                 }
             }
 
-            cardsContainerClipboard.Height = Math.Max(cardY + 10, 100);
-            cardsContainerClipboard.ResumeLayout(true);
+            if (emptyFilterLbl != null)
+            {
+                if (visibleCount == 0)
+                {
+                    if (totalItemsCount == 0)
+                    {
+                        if (isHub)
+                        {
+                            string folder = Config.SuperHubFoldersEnabled ? Config.SuperHubCurrentFolder : null;
+                            emptyFilterLbl.Text = (!string.IsNullOrEmpty(folder) && !string.Equals(folder, "Все", StringComparison.OrdinalIgnoreCase))
+                                ? ("Папка \"" + folder + "\" пуста.\nПеретащите сюда файлы или переместите из других папок через ПКМ.")
+                                : "Полка SuperHub пуста.\nПеретащите сюда файлы или нажмите Ctrl+Alt+C.";
+                        }
+                        else
+                        {
+                            emptyFilterLbl.Text = "Здесь ничего нет.\nСкопированные элементы появятся в этом окне.";
+                        }
+                    }
+                    else
+                    {
+                        emptyFilterLbl.Text = "В этой категории пока нет элементов.\nНажмите «Все», чтобы показать все элементы.";
+                    }
+                    emptyFilterLbl.Width = cardW;
+                    emptyFilterLbl.Location = new Point(0, 30);
+                    emptyFilterLbl.Visible = true;
+                    cardY = 200;
+                }
+                else
+                {
+                    emptyFilterLbl.Visible = false;
+                }
+            }
+
+            container.Height = Math.Max(cardY + 10, 100);
+            container.ResumeLayout(true);
             UpdateContainerScroll();
         }
 
@@ -2462,16 +2657,15 @@ namespace PasteImageAsFile
                 btnF.Paint += (s, e) => {
                     Graphics g = e.Graphics;
                     g.SmoothingMode = SmoothingMode.AntiAlias;
-                    Color clearBg = ThemeHelper.Background;
-                    g.Clear(clearBg);
+                    ThemeHelper.DrawAcrylicBackground(g, btnF, this, acrylicBackdrop);
 
                     bool isCurrent = string.Equals(Config.SuperHubCurrentFolder, folderTag, StringComparison.OrdinalIgnoreCase);
                     Rectangle r = new Rectangle(0, 0, btnF.Width - 1, btnF.Height - 1);
-                    using (var path = CreateRoundedPath(r, 6))
+                    using (var path = CreateRoundedPath(r, 5))
                     {
                         Color bg = isCurrent
-                            ? (ThemeHelper.IsDarkTheme() ? Color.FromArgb(28, 48, 72) : Color.FromArgb(232, 240, 252))
-                            : (isHover ? ThemeHelper.ButtonHover : Color.Transparent);
+                            ? (ThemeHelper.IsDarkTheme() ? Color.FromArgb(44, 255, 255, 255) : Color.FromArgb(232, 240, 252))
+                            : (isHover ? Color.FromArgb(28, 255, 255, 255) : Color.Transparent);
 
                         using (var brush = new SolidBrush(bg))
                         {
@@ -2479,14 +2673,14 @@ namespace PasteImageAsFile
                         }
                         if (isCurrent)
                         {
-                            using (var pen = new Pen(ThemeHelper.Accent, 1f))
+                            using (var pen = new Pen(Color.FromArgb(85, 255, 255, 255), 1f))
                             {
                                 g.DrawPath(pen, path);
                             }
                         }
                         else if (isHover)
                         {
-                            using (var pen = new Pen(ThemeHelper.CardBorder, 1f))
+                            using (var pen = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
                             {
                                 g.DrawPath(pen, path);
                             }
@@ -2497,7 +2691,7 @@ namespace PasteImageAsFile
                     if (!isAll)
                     {
                         Color iconCol = isCurrent
-                            ? ThemeHelper.Accent
+                            ? ThemeHelper.SuperHubSecondaryAccent
                             : (isHover ? Color.FromArgb(235, 195, 110) : Color.FromArgb(170, 150, 100));
                         Rectangle iconRect = new Rectangle(7, (btnF.Height - 11) / 2, 13, 11);
                         DrawFolderIcon(g, iconRect, iconCol);
@@ -2505,7 +2699,7 @@ namespace PasteImageAsFile
                     }
 
                     Color txtColor = isCurrent
-                        ? (ThemeHelper.IsDarkTheme() ? Color.White : ThemeHelper.Accent)
+                        ? ThemeHelper.TextPrimary
                         : (isHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
 
                     using (var fFont = new Font("Segoe UI", 8.8f, isCurrent ? FontStyle.Bold : FontStyle.Regular))
@@ -2571,13 +2765,12 @@ namespace PasteImageAsFile
             btnAddFolder.Paint += (s, e) => {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                Color clearBg = ThemeHelper.Background;
-                g.Clear(clearBg);
+                ThemeHelper.DrawAcrylicBackground(g, btnAddFolder, this, acrylicBackdrop);
                 Rectangle r = new Rectangle(0, 0, btnAddFolder.Width - 1, btnAddFolder.Height - 1);
                 if (isAddHover)
                 {
                     using (var path = CreateRoundedPath(r, 12))
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
+                    using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
                     {
                         g.FillPath(b, path);
                     }
@@ -2783,39 +2976,11 @@ namespace PasteImageAsFile
 
         private void UpdateTabsVisual()
         {
-            // 1. Главные вкладки (Буфер обмена / SuperHub)
-            if (btnMainClipboard != null)
-            {
-                bool active = (currentMainTab == 0);
-                btnMainClipboard.Font = new Font("Segoe UI", 9f, active ? FontStyle.Bold : FontStyle.Regular);
-                btnMainClipboard.ForeColor = active ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary;
-                btnMainClipboard.FlatAppearance.MouseOverBackColor = ThemeHelper.ButtonHover;
-                btnMainClipboard.FlatAppearance.MouseDownBackColor = ThemeHelper.ButtonPressed;
-            }
-
-            if (btnMainSuperHub != null)
-            {
-                bool active = (currentMainTab == 1);
-                var superList = ClipboardHistoryManager.Instance.GetItems(null, true);
-                string title = superList.Count > 0 ? ("SuperHub [" + superList.Count + "]") : "SuperHub";
-                btnMainSuperHub.Text = title;
-                btnMainSuperHub.Font = new Font("Segoe UI", 9f, active ? FontStyle.Bold : FontStyle.Regular);
-                btnMainSuperHub.ForeColor = active ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary;
-                btnMainSuperHub.FlatAppearance.MouseOverBackColor = ThemeHelper.ButtonHover;
-                btnMainSuperHub.FlatAppearance.MouseDownBackColor = ThemeHelper.ButtonPressed;
-            }
-
             if (pnlMainTabs != null) pnlMainTabs.Invalidate();
 
-            // 2. Подвкладки фильтров буфера
             for (int i = 0; i < filterButtons.Count; i++)
             {
-                bool active = (i == currentFilterIndex);
-                filterButtons[i].BackColor = active ? ThemeHelper.AccentBackground : Color.Transparent;
-                filterButtons[i].ForeColor = active ? ThemeHelper.Accent : ThemeHelper.TextSecondary;
-                filterButtons[i].Font = new Font("Segoe UI", 8.6f, active ? FontStyle.Bold : FontStyle.Regular);
-                filterButtons[i].FlatAppearance.MouseOverBackColor = ThemeHelper.ButtonHover;
-                filterButtons[i].FlatAppearance.MouseDownBackColor = ThemeHelper.ButtonPressed;
+                filterButtons[i].BackColor = Color.Transparent;
                 filterButtons[i].Invalidate();
             }
 
@@ -2850,80 +3015,55 @@ namespace PasteImageAsFile
             container.SuspendLayout();
             SafeDisposeControls(container);
 
-            ClipboardItemType? filter = null;
-            bool pinnedOnly = false;
-            bool linksOnly = false;
-            bool textOnlyNoLinks = false;
-            if (!isHub)
-            {
-                if (currentFilterIndex == 1) pinnedOnly = true;
-                else if (currentFilterIndex == 2) filter = ClipboardItemType.Image;
-                else if (currentFilterIndex == 3) textOnlyNoLinks = true;
-                else if (currentFilterIndex == 4) linksOnly = true;
-                else if (currentFilterIndex == 5) filter = ClipboardItemType.Files;
-            }
-
-            string search = (!isHub && txtSearch != null) ? txtSearch.Text.Trim() : null;
             string folder = (isHub && Config.SuperHubFoldersEnabled) ? Config.SuperHubCurrentFolder : null;
-            var list = ClipboardHistoryManager.Instance.GetItems(filter, isHub, search, folder, pinnedOnly, linksOnly, textOnlyNoLinks);
-
-            int hubCount = ClipboardHistoryManager.Instance.GetSuperHubCount();
-            if (btnMainSuperHub != null)
-            {
-                btnMainSuperHub.Text = hubCount > 0 ? ("SuperHub [" + hubCount + "]") : "SuperHub";
-            }
+            var list = isHub
+                ? ClipboardHistoryManager.Instance.GetItems(null, true, null, folder, false, false, false)
+                : ClipboardHistoryManager.Instance.GetItems(null, false, null, null, false, false, false);
 
             int cardY = 4;
             int cardW = container.Width;
 
-            if (list.Count == 0)
+            Label emptyFilterLbl = new Label
             {
-                string emptyText = isHub
-                    ? (!string.IsNullOrEmpty(folder) && !string.Equals(folder, "Все", StringComparison.OrdinalIgnoreCase)
-                        ? ("Папка \"" + folder + "\" пуста.\nПеретащите сюда файлы или переместите из других папок через ПКМ.")
-                        : "Полка SuperHub пуста.\nПеретащите сюда файлы или добавьте через меню [···].")
-                    : "История пуста.\nСкопируйте текст, снимок или файл,\nи они появятся здесь.";
+                Tag = "empty_filter_label",
+                Text = isHub
+                    ? "Полка SuperHub пуста.\nПеретащите сюда файлы или нажмите Ctrl+Alt+C."
+                    : "Здесь ничего нет.\nСкопированные элементы появятся в этом окне.",
+                ForeColor = ThemeHelper.TextMuted,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9.5f),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Size = new Size(cardW, 140),
+                Location = new Point(0, 30),
+                Visible = (list.Count == 0)
+            };
+            container.Controls.Add(emptyFilterLbl);
 
-                Label empty = new Label
-                {
-                    Text = emptyText,
-                    ForeColor = ThemeHelper.TextMuted,
-                    Font = new Font("Segoe UI", 9.5f),
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Size = new Size(cardW, 140),
-                    Location = new Point(0, 30)
-                };
-                container.Controls.Add(empty);
-                container.Height = 200;
-            }
-            else
+            foreach (var item in list)
             {
-                foreach (var item in list)
+                try
                 {
-                    try
+                    var card = CreateItemCard(item, cardW, isHub);
+                    if (card != null)
                     {
-                        var card = CreateItemCard(item, cardW, isHub);
-                        if (card != null)
+                        card.Tag = item;
+                        card.Location = new Point(0, cardY);
+                        container.Controls.Add(card);
+                        if (isHub)
                         {
-                            card.Tag = item;
-                            card.Location = new Point(0, cardY);
-                            container.Controls.Add(card);
-                            if (isHub)
-                            {
-                                RegisterSuperHubDropTarget(card);
-                            }
-                            cardY += card.Height + 8;
+                            RegisterSuperHubDropTarget(card);
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log("PopulateContainer item error: " + ex.ToString());
+                        cardY += card.Height + 8;
                     }
                 }
-                container.Height = cardY + 10;
+                catch (Exception ex)
+                {
+                    Logger.Log("PopulateContainer item error: " + ex.ToString());
+                }
             }
 
             container.ResumeLayout(true);
+            ApplyFilterToContainer(container, isHub);
         }
 
         public void RefreshItems()
@@ -2982,9 +3122,46 @@ namespace PasteImageAsFile
 
         private Control CreateItemCard(ClipboardItem item, int width, bool isHub)
         {
-            int cardH = 74;
+            string firstFile = (item.FilePaths != null && item.FilePaths.Count > 0) ? item.FilePaths[0] : null;
+            bool isPdf = false;
+            bool isImageFile = false;
+            if (item.Type == ClipboardItemType.Files && !string.IsNullOrEmpty(firstFile))
+            {
+                string ext = SafeGetExtension(firstFile).ToLowerInvariant();
+                if (ext == ".pdf")
+                {
+                    isPdf = true;
+                }
+                else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".bmp" || ext == ".webp")
+                {
+                    if (SafeFileExists(firstFile))
+                    {
+                        isImageFile = true;
+                    }
+                }
+            }
 
-            Panel card = new DoubleBufferedPanel
+            bool isImageCard = (item.Type == ClipboardItemType.Image && SafeFileExists(item.ImagePath)) || isImageFile;
+            string imgSourcePath = (item.Type == ClipboardItemType.Image) ? item.ImagePath : firstFile;
+
+            // Определяем высоту карточки 1-в-1 как в Windows 11
+            int cardH = 74;
+            if (isImageCard)
+            {
+                cardH = 124;
+            }
+            else if (item.Type == ClipboardItemType.Text)
+            {
+                string rawCheck = (item.TextContent ?? "").Trim();
+                bool hasNewlines = rawCheck.IndexOf('\n') >= 0;
+                cardH = (rawCheck.Length > 42 || hasNewlines) ? 80 : 66;
+            }
+            else
+            {
+                cardH = 68;
+            }
+
+            AcrylicCardPanel card = new AcrylicCardPanel
             {
                 Size = new Size(width, cardH),
                 BackColor = ThemeHelper.CardBackground,
@@ -2994,15 +3171,46 @@ namespace PasteImageAsFile
             bool isCardHovered = false;
             card.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Color bColor = item.IsPinned ? ThemeHelper.Accent : (isCardHovered ? ThemeHelper.CardBorderHover : ThemeHelper.CardBorder);
-                using (var pen = new Pen(bColor, item.IsPinned ? 1.5f : 1f))
-                using (var path = CreateRoundedPath(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 8))
+                bool isFirstVisible = false;
+                if (card.Parent != null)
+                {
+                    foreach (Control sib in card.Parent.Controls)
+                    {
+                        if (sib.Visible && sib.Tag is ClipboardItem)
+                        {
+                            isFirstVisible = (sib == card);
+                            break;
+                        }
+                    }
+                }
+
+                Color bColor;
+                float bWidth = 1f;
+                if (isFirstVisible)
+                {
+                    bColor = ThemeHelper.IsDarkTheme() ? Color.FromArgb(115, 255, 255, 255) : ThemeHelper.Accent;
+                    bWidth = 1.1f;
+                }
+                else if (item.IsPinned)
+                {
+                    bColor = isCardHovered ? ThemeHelper.Accent : Color.FromArgb(80, 255, 255, 255);
+                    bWidth = 1f;
+                }
+                else
+                {
+                    bColor = ThemeHelper.IsDarkTheme()
+                        ? Color.FromArgb(isCardHovered ? 75 : 34, 255, 255, 255)
+                        : (isCardHovered ? ThemeHelper.CardBorderHover : ThemeHelper.CardBorder);
+                }
+
+                using (var pen = new Pen(bColor, bWidth))
+                using (var path = CreateRoundedPath(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 6))
                 {
                     e.Graphics.DrawPath(pen, path);
                 }
             };
 
-            // Определение пути для открытия/запуска
+            // Определение пути для открытия/запуска по двойному клику
             string targetPathForLaunch = null;
             if (item.Type == ClipboardItemType.Image && SafeFileExists(item.ImagePath))
             {
@@ -3023,286 +3231,223 @@ namespace PasteImageAsFile
                 }
             }
 
-            // Определение превью элемента (54x54 px)
-            string firstFile = (item.FilePaths != null && item.FilePaths.Count > 0) ? item.FilePaths[0] : null;
-            bool isPdf = false;
-            bool isImageFile = false;
-            if (item.Type == ClipboardItemType.Files && !string.IsNullOrEmpty(firstFile))
+            string cardTip = isHub
+                ? "Клик: скопировать в буфер\nДвойной клик: открыть\nЗажать и потянуть: перетащить наружу\nПравый клик или [⋯]: меню действий"
+                : (string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase)
+                    ? "Клик: вставить в активное окно [Ctrl+V]\nДвойной клик: открыть\nПравый клик или [⋯]: меню действий"
+                    : "Клик: скопировать в буфер\nДвойной клик: открыть\nПравый клик или [⋯]: меню действий");
+
+            if (isImageCard && !string.IsNullOrEmpty(imgSourcePath))
             {
-                string ext = SafeGetExtension(firstFile).ToLowerInvariant();
-                if (ext == ".pdf")
+                // Широкое превью изображения внутри карточки (как в нативном буфере Windows 11)
+                int previewW = Math.Max(80, width - 50);
+                int previewH = cardH - 20;
+                Image wideThumb = ThumbnailCache.GetThumbnail(imgSourcePath, 260, 104);
+
+                Panel pnlImgPreview = new DoubleBufferedPanel
                 {
-                    isPdf = true;
-                }
-                else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".bmp" || ext == ".webp")
-                {
-                    if (SafeFileExists(firstFile))
+                    Location = new Point(12, 10),
+                    Size = new Size(previewW, previewH),
+                    BackColor = Color.Transparent,
+                    Cursor = Cursors.Hand,
+                    Tag = "img_preview"
+                };
+
+                Image finalWideThumb = wideThumb;
+                pnlImgPreview.Paint += (s, e) => {
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    Rectangle rImg = new Rectangle(0, 0, pnlImgPreview.Width - 1, pnlImgPreview.Height - 1);
+                    using (var path = CreateRoundedPath(rImg, 4))
                     {
-                        isImageFile = true;
-                    }
-                }
-            }
-
-            Image previewBitmap = null;
-            if (item.Type == ClipboardItemType.Image && SafeFileExists(item.ImagePath))
-            {
-                previewBitmap = ThumbnailCache.GetThumbnail(item.ImagePath, 54, 54);
-            }
-            else if (isImageFile)
-            {
-                previewBitmap = ThumbnailCache.GetThumbnail(firstFile, 54, 54);
-            }
-
-            Image fileIcon = null;
-            if (item.Type == ClipboardItemType.Files && !isPdf && previewBitmap == null && !string.IsNullOrEmpty(firstFile))
-            {
-                try { fileIcon = FileIconHelper.GetIconForPath(firstFile); } catch {}
-            }
-
-            Panel pnlPreview = new DoubleBufferedPanel
-            {
-                Location = new Point(10, 10),
-                Size = new Size(54, 54),
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand
-            };
-
-            Image finalPreviewBmp = previewBitmap;
-            Image finalFileIcon = fileIcon;
-            bool finalIsPdf = isPdf;
-            ClipboardItem currentItem = item;
-
-            pnlPreview.Paint += (s, e) => {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-                if (currentItem.Type == ClipboardItemType.Text)
-                {
-                    DrawTextDocThumbnail(e.Graphics, new Rectangle(0, 0, 54, 54));
-                }
-                else if (finalIsPdf)
-                {
-                    DrawPdfDocThumbnail(e.Graphics, new Rectangle(0, 0, 54, 54));
-                }
-                else if (finalPreviewBmp != null)
-                {
-                    using (var path = CreateRoundedPath(new Rectangle(0, 0, 54, 54), 6))
-                    {
-                        e.Graphics.SetClip(path);
-                        e.Graphics.DrawImage(finalPreviewBmp, 0, 0, 54, 54);
-                        e.Graphics.ResetClip();
-
-                        using (var pen = new Pen(Color.FromArgb(40, 255, 255, 255), 1f))
+                        using (var bgBrush = new SolidBrush(Color.FromArgb(24, 24, 24)))
                         {
-                            e.Graphics.DrawPath(pen, path);
+                            e.Graphics.FillPath(bgBrush, path);
+                        }
+                        if (finalWideThumb != null)
+                        {
+                            e.Graphics.SetClip(path);
+                            e.Graphics.DrawImage(finalWideThumb, 0, 0, pnlImgPreview.Width, pnlImgPreview.Height);
+                            e.Graphics.ResetClip();
+                        }
+                        using (var borderPen = new Pen(Color.FromArgb(35, 255, 255, 255), 1f))
+                        {
+                            e.Graphics.DrawPath(borderPen, path);
                         }
                     }
-                }
-                else
-                {
-                    using (var path = CreateRoundedPath(new Rectangle(0, 0, 54, 54), 6))
-                    using (var bgBrush = new SolidBrush(Color.FromArgb(17, 30, 46)))
-                    using (var borderPen = new Pen(ThemeHelper.CardBorder, 1f))
-                    {
-                        e.Graphics.FillPath(bgBrush, path);
-                        e.Graphics.DrawPath(borderPen, path);
-                    }
-                    if (finalFileIcon != null)
-                    {
-                        int ix = (54 - finalFileIcon.Width) / 2;
-                        int iy = (54 - finalFileIcon.Height) / 2;
-                        e.Graphics.DrawImage(finalFileIcon, ix, iy);
-                    }
-                }
-            };
-            card.Controls.Add(pnlPreview);
-
-            // Текстовая информация (Заголовок и метаданные)
-            int textLeft = 74;
-            int textWidth = Math.Max(40, card.Width - textLeft - 58);
-
-            string titleText = "";
-            if (item.Type == ClipboardItemType.Text)
-            {
-                string raw = (item.TextContent ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
-                if (raw.Length > 80) raw = raw.Substring(0, 80) + "...";
-                if (isHub && raw.StartsWith("Заметка в SuperHub:", StringComparison.OrdinalIgnoreCase))
-                {
-                    titleText = raw.Substring(raw.IndexOf(':') + 1).Trim();
-                }
-                else
-                {
-                    titleText = raw;
-                }
+                };
+                toolTip.SetToolTip(pnlImgPreview, cardTip);
+                card.Controls.Add(pnlImgPreview);
             }
-            else if (item.Type == ClipboardItemType.Image)
+            else if (item.Type == ClipboardItemType.Text)
             {
-                if (!string.IsNullOrEmpty(item.SourceApp) && item.SourceApp != "Неизвестно")
+                // В нативном буфере Windows 11 текстовые элементы и ссылки отображаются чистым белым текстом слева без иконки
+                string rawText = (item.TextContent ?? "").Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+                if (isHub && rawText.StartsWith("Заметка в SuperHub:", StringComparison.OrdinalIgnoreCase))
                 {
-                    titleText = item.SourceApp;
+                    rawText = rawText.Substring(rawText.IndexOf(':') + 1).Trim();
                 }
-                else if (!string.IsNullOrEmpty(item.ImagePath))
+                if (rawText.Length > 260) rawText = rawText.Substring(0, 260) + "...";
+
+                int textLeft = 14;
+                int textWidth = Math.Max(40, width - textLeft - 38);
+
+                Label lblText = new Label
                 {
-                    titleText = SafeGetFileName(item.ImagePath);
-                }
-                else
-                {
-                    titleText = "Снимок экрана";
-                }
+                    Text = rawText,
+                    Font = new Font("Segoe UI", 9.25f, FontStyle.Regular),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    BackColor = Color.Transparent,
+                    Location = new Point(textLeft, 11),
+                    Size = new Size(textWidth, cardH - 22),
+                    AutoEllipsis = true,
+                    Cursor = Cursors.Hand
+                };
+                toolTip.SetToolTip(lblText, cardTip);
+                card.Controls.Add(lblText);
             }
-            else if (item.Type == ClipboardItemType.Files)
+            else
             {
-                if (!string.IsNullOrEmpty(firstFile))
+                // Карточка файла или папки (не изображение)
+                Image fileIcon = null;
+                if (!isPdf && !string.IsNullOrEmpty(firstFile))
                 {
-                    string fn = SafeGetFileName(firstFile);
-                    if (item.FilePaths != null && item.FilePaths.Count > 1)
+                    try { fileIcon = FileIconHelper.GetIconForPath(firstFile); } catch {}
+                }
+
+                Panel pnlFileIcon = new DoubleBufferedPanel
+                {
+                    Location = new Point(12, 14),
+                    Size = new Size(40, 40),
+                    BackColor = Color.Transparent,
+                    Cursor = Cursors.Hand
+                };
+
+                Image finalFileIcon = fileIcon;
+                bool finalIsPdf = isPdf;
+                pnlFileIcon.Paint += (s, e) => {
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    if (finalIsPdf)
                     {
-                        titleText = fn + " (+" + (item.FilePaths.Count - 1) + ")";
+                        DrawPdfDocThumbnail(e.Graphics, new Rectangle(0, 0, 40, 40));
                     }
                     else
                     {
-                        titleText = fn;
+                        using (var path = CreateRoundedPath(new Rectangle(0, 0, 39, 39), 5))
+                        using (var bgBrush = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
+                        using (var borderPen = new Pen(Color.FromArgb(55, 255, 255, 255), 1f))
+                        {
+                            e.Graphics.FillPath(bgBrush, path);
+                            e.Graphics.DrawPath(borderPen, path);
+                        }
+                        if (finalFileIcon != null)
+                        {
+                            int ix = (40 - finalFileIcon.Width) / 2;
+                            int iy = (40 - finalFileIcon.Height) / 2;
+                            e.Graphics.DrawImage(finalFileIcon, ix, iy);
+                        }
                     }
-                }
-                else
+                };
+                toolTip.SetToolTip(pnlFileIcon, cardTip);
+                card.Controls.Add(pnlFileIcon);
+
+                string titleText = "Файлы";
+                if (!string.IsNullOrEmpty(firstFile))
                 {
-                    titleText = "Файлы";
+                    string fn = SafeGetFileName(firstFile);
+                    titleText = (item.FilePaths != null && item.FilePaths.Count > 1)
+                        ? (fn + " (+" + (item.FilePaths.Count - 1) + ")")
+                        : fn;
                 }
+
+                string fType = isPdf ? "PDF" : (SafeDirectoryExists(firstFile) ? "Папка" : "Файл");
+                string sz = item.FileSizeBytes > 0 ? (" • " + (item.FileSizeBytes / 1024) + " КБ") : "";
+                string subText = fType + sz + " • " + item.Timestamp.ToString("HH:mm");
+
+                int textLeft = 60;
+                int textWidth = Math.Max(40, width - textLeft - 38);
+
+                Label lblTitle = new Label
+                {
+                    Text = titleText,
+                    Font = CardTitleFont,
+                    ForeColor = ThemeHelper.TextPrimary,
+                    BackColor = Color.Transparent,
+                    Location = new Point(textLeft, 13),
+                    Size = new Size(textWidth, 20),
+                    AutoEllipsis = true,
+                    Cursor = Cursors.Hand
+                };
+                Label lblSub = new Label
+                {
+                    Text = subText,
+                    Font = CardSubFont,
+                    ForeColor = ThemeHelper.TextSecondary,
+                    BackColor = Color.Transparent,
+                    Location = new Point(textLeft, 34),
+                    Size = new Size(textWidth, 18),
+                    AutoEllipsis = true,
+                    Cursor = Cursors.Hand
+                };
+                toolTip.SetToolTip(lblTitle, cardTip);
+                toolTip.SetToolTip(lblSub, cardTip);
+                card.Controls.Add(lblTitle);
+                card.Controls.Add(lblSub);
             }
 
-            string timeStr = item.Timestamp.ToString("HH:mm:ss");
-            string prefix = isHub ? "SuperHub" : "Буфер обмена";
-            string subText = "";
-
-            if (item.Type == ClipboardItemType.Text)
+            // Правая колонка из 2 кнопок (1-в-1 как в Windows 11: вверху [⋯], внизу наклонная булавка [📌])
+            Button btnMore = new Button
             {
-                int len = (item.TextContent ?? "").Length;
-                subText = prefix + " • " + len + " симв. • " + timeStr;
-            }
-            else if (item.Type == ClipboardItemType.Image)
-            {
-                string dims = (item.ImageWidth > 0 && item.ImageHeight > 0)
-                    ? (item.ImageWidth + " × " + item.ImageHeight + " • ")
-                    : "";
-                subText = prefix + " • " + dims + timeStr;
-            }
-            else if (item.Type == ClipboardItemType.Files)
-            {
-                string fType = (isPdf ? "PDF • " : (SafeDirectoryExists(firstFile) ? "Папка • " : "Файл • "));
-                string sz = item.FileSizeBytes > 0 ? ((item.FileSizeBytes / 1024) + " КБ • ") : "";
-                subText = prefix + " • " + fType + sz + timeStr;
-            }
-
-            Label lblTitle = new Label
-            {
-                Text = titleText,
-                Font = CardTitleFont,
-                ForeColor = ThemeHelper.TextPrimary,
-                Location = new Point(textLeft, 14),
-                Size = new Size(textWidth, 20),
-                AutoEllipsis = true,
-                Cursor = Cursors.Hand
-            };
-
-            Label lblSub = new Label
-            {
-                Text = subText,
-                Font = CardSubFont,
-                ForeColor = ThemeHelper.TextSecondary,
-                Location = new Point(textLeft, 38),
-                Size = new Size(textWidth, 18),
-                AutoEllipsis = true,
-                Cursor = Cursors.Hand
-            };
-
-            card.Controls.Add(lblTitle);
-            card.Controls.Add(lblSub);
-
-            // Сетка векторных кнопок 2x2 справа
-            int c1 = card.Width - 54;
-            int c2 = card.Width - 27;
-            int r1 = 11;
-            int r2 = 38;
-
-            // 1. c1_r1: Копировать/Вставить в активное окно [❐]
-            Button btnCopy = new Button
-            {
-                Location = new Point(c1, r1),
-                Size = new Size(24, 24),
+                Location = new Point(card.Width - 32, 6),
+                Size = new Size(26, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.CardBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false,
-                Tag = "c1_r1"
+                Tag = "btn_more"
             };
-            btnCopy.FlatAppearance.BorderSize = 0;
-            btnCopy.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnCopy.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isHoverCopy = false;
-            btnCopy.MouseEnter += (s, e) => { isHoverCopy = true; btnCopy.Invalidate(); };
-            btnCopy.MouseLeave += (s, e) => { isHoverCopy = false; btnCopy.Invalidate(); };
-            btnCopy.Paint += (s, e) => {
-                Color parentBg = (btnCopy.Parent != null) ? btnCopy.Parent.BackColor : ThemeHelper.CardBackground;
-                e.Graphics.Clear(parentBg);
-                if (isHoverCopy)
+            btnMore.FlatAppearance.BorderSize = 0;
+            btnMore.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnMore.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isHoverMore = false;
+            btnMore.MouseEnter += (s, e) => { isHoverMore = true; btnMore.Invalidate(); };
+            btnMore.MouseLeave += (s, e) => { isHoverMore = false; btnMore.Invalidate(); };
+            btnMore.Paint += (s, e) => {
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnMore, this, acrylicBackdrop);
+                Color glassFill = ThemeHelper.IsDarkTheme()
+                    ? Color.FromArgb(card.IsCardHovered ? 36 : 22, 255, 255, 255)
+                    : Color.FromArgb(card.IsCardHovered ? 242 : 218, 255, 255, 255);
+                using (var glassBrush = new SolidBrush(glassFill))
                 {
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnCopy.Width - 1, btnCopy.Height - 1), 4))
+                    e.Graphics.FillRectangle(glassBrush, 0, 0, btnMore.Width, btnMore.Height);
+                }
+                if (isHoverMore)
+                {
+                    using (var b = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
+                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnMore.Width - 1, btnMore.Height - 1), 4))
                     {
                         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                         e.Graphics.FillPath(b, p);
                     }
                 }
-                DrawCopyIcon(e.Graphics, new Rectangle(0, 0, btnCopy.Width, btnCopy.Height), isHoverCopy ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                DrawMoreDotsIcon(e.Graphics, new Rectangle(0, 0, btnMore.Width, btnMore.Height), isHoverMore ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
             };
-            btnCopy.Click += (s, e) => PasteItem(item);
-            toolTip.SetToolTip(btnCopy, "Вставить в активное окно (Ctrl+V)");
-            card.Controls.Add(btnCopy);
+            btnMore.Click += (s, e) => {
+                ContextMenu cm = CreateCardContextMenu(item);
+                cm.Show(btnMore, new Point(0, btnMore.Height));
+            };
+            toolTip.SetToolTip(btnMore, "Дополнительные действия (просмотр, удаление, в SuperHub)");
+            card.Controls.Add(btnMore);
 
-            // 2. c2_r1: Быстрый просмотр [👁]
-            Button btnView = new Button
-            {
-                Location = new Point(c2, r1),
-                Size = new Size(24, 24),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.CardBackground,
-                Cursor = Cursors.Hand,
-                TabStop = false,
-                Tag = "c2_r1"
-            };
-            btnView.FlatAppearance.BorderSize = 0;
-            btnView.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnView.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isHoverView = false;
-            btnView.MouseEnter += (s, e) => { isHoverView = true; btnView.Invalidate(); };
-            btnView.MouseLeave += (s, e) => { isHoverView = false; btnView.Invalidate(); };
-            btnView.Paint += (s, e) => {
-                Color parentBg = (btnView.Parent != null) ? btnView.Parent.BackColor : ThemeHelper.CardBackground;
-                e.Graphics.Clear(parentBg);
-                if (isHoverView)
-                {
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnView.Width - 1, btnView.Height - 1), 4))
-                    {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
-                    }
-                }
-                DrawEyeIcon(e.Graphics, new Rectangle(0, 0, btnView.Width, btnView.Height), isHoverView ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-            };
-            btnView.Click += (s, e) => ItemViewerForm.ShowViewer(item);
-            toolTip.SetToolTip(btnView, "Быстрый просмотр содержимого");
-            card.Controls.Add(btnView);
-
-            // 3. c1_r2: Закрепить вверху [📌]
             Button btnPin = new Button
             {
-                Location = new Point(c1, r2),
-                Size = new Size(24, 24),
+                Location = new Point(card.Width - 32, cardH - 28),
+                Size = new Size(26, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.CardBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false,
-                Tag = "c1_r2"
+                Tag = "btn_pin"
             };
             btnPin.FlatAppearance.BorderSize = 0;
             btnPin.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -3311,11 +3456,17 @@ namespace PasteImageAsFile
             btnPin.MouseEnter += (s, e) => { isHoverPin = true; btnPin.Invalidate(); };
             btnPin.MouseLeave += (s, e) => { isHoverPin = false; btnPin.Invalidate(); };
             btnPin.Paint += (s, e) => {
-                Color parentBg = (btnPin.Parent != null) ? btnPin.Parent.BackColor : ThemeHelper.CardBackground;
-                e.Graphics.Clear(parentBg);
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnPin, this, acrylicBackdrop);
+                Color glassFill = ThemeHelper.IsDarkTheme()
+                    ? Color.FromArgb(card.IsCardHovered ? 36 : 22, 255, 255, 255)
+                    : Color.FromArgb(card.IsCardHovered ? 242 : 218, 255, 255, 255);
+                using (var glassBrush = new SolidBrush(glassFill))
+                {
+                    e.Graphics.FillRectangle(glassBrush, 0, 0, btnPin.Width, btnPin.Height);
+                }
                 if (isHoverPin)
                 {
-                    using (var b = new SolidBrush(ThemeHelper.ButtonHover))
+                    using (var b = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
                     using (var p = CreateRoundedPath(new Rectangle(0, 0, btnPin.Width - 1, btnPin.Height - 1), 4))
                     {
                         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -3323,60 +3474,14 @@ namespace PasteImageAsFile
                     }
                 }
                 Color pinColor = item.IsPinned ? ThemeHelper.Accent : (isHoverPin ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-                DrawPinIcon(e.Graphics, new Rectangle(0, 0, btnPin.Width, btnPin.Height), pinColor, item.IsPinned);
+                DrawWin11PinIcon(e.Graphics, new Rectangle(0, 0, btnPin.Width, btnPin.Height), pinColor, item.IsPinned);
             };
             btnPin.Click += (s, e) => {
                 ClipboardHistoryManager.Instance.TogglePin(item.Id);
                 RefreshItems();
             };
-            toolTip.SetToolTip(btnPin, item.IsPinned ? "Открепить" : "Закрепить вверху");
+            toolTip.SetToolTip(btnPin, item.IsPinned ? "Открепить элемент" : "Закрепить элемент");
             card.Controls.Add(btnPin);
-
-            // 4. c2_r2: Удалить из буфера / SuperHub [✕]
-            Button btnDelete = new Button
-            {
-                Location = new Point(c2, r2),
-                Size = new Size(24, 24),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.CardBackground,
-                Cursor = Cursors.Hand,
-                TabStop = false,
-                Tag = "c2_r2"
-            };
-            btnDelete.FlatAppearance.BorderSize = 0;
-            btnDelete.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnDelete.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool isHoverDel = false;
-            btnDelete.MouseEnter += (s, e) => { isHoverDel = true; btnDelete.Invalidate(); };
-            btnDelete.MouseLeave += (s, e) => { isHoverDel = false; btnDelete.Invalidate(); };
-            btnDelete.Paint += (s, e) => {
-                Color parentBg = (btnDelete.Parent != null) ? btnDelete.Parent.BackColor : ThemeHelper.CardBackground;
-                e.Graphics.Clear(parentBg);
-                if (isHoverDel)
-                {
-                    using (var b = new SolidBrush(Color.FromArgb(196, 43, 28)))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnDelete.Width - 1, btnDelete.Height - 1), 4))
-                    {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
-                    }
-                }
-                DrawCloseIcon(e.Graphics, new Rectangle(0, 0, btnDelete.Width, btnDelete.Height), isHoverDel ? Color.White : ThemeHelper.TextSecondary);
-            };
-            btnDelete.Click += (s, e) => {
-                this.Activate();
-                if (isHub)
-                {
-                    ClipboardHistoryManager.Instance.ToggleSuperHub(item.Id);
-                }
-                else
-                {
-                    ClipboardHistoryManager.Instance.DeleteItem(item.Id);
-                }
-                RefreshItems();
-            };
-            toolTip.SetToolTip(btnDelete, isHub ? "Убрать с полки SuperHub" : "Удалить из истории буфера");
-            card.Controls.Add(btnDelete);
 
             // Обработка кликов, наведения и перетаскивания (Drag-and-Drop)
             Point dragStartScreenPt = Point.Empty;
@@ -3418,13 +3523,13 @@ namespace PasteImageAsFile
 
                 c.MouseEnter += (s, e) => {
                     isCardHovered = true;
-                    card.BackColor = ThemeHelper.CardHover;
-                    card.Invalidate();
+                    card.IsCardHovered = true;
+                    card.Invalidate(true);
                 };
                 c.MouseLeave += (s, e) => {
                     isCardHovered = false;
-                    card.BackColor = ThemeHelper.CardBackground;
-                    card.Invalidate();
+                    card.IsCardHovered = false;
+                    card.Invalidate(true);
                 };
 
                 c.MouseDown += (s, e) => {
@@ -3474,7 +3579,8 @@ namespace PasteImageAsFile
 
                     if (e.Button == MouseButtons.Left && !isCardDoubleClickOccurred)
                     {
-                        if (!string.IsNullOrEmpty(targetPathForLaunch))
+                        bool instantClipboardPaste = !isHub && string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
+                        if (!instantClipboardPaste && !string.IsNullOrEmpty(targetPathForLaunch))
                         {
                             if (cardClickTimer != null)
                             {
@@ -3548,15 +3654,7 @@ namespace PasteImageAsFile
                 }
             };
             attachEvents(card);
-
-            string cardTip = isHub
-                ? "Клик: скопировать в буфер\nДвойной клик: открыть файл\nЗажать и потянуть: перетащить наружу\nПравый клик: меню действий"
-                : (string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase)
-                    ? "Клик: вставить в активное окно [Ctrl+V]\nДвойной клик: открыть файл\nПравый клик: меню действий"
-                    : "Клик: скопировать в буфер\nДвойной клик: открыть файл\nПравый клик: меню действий");
-            toolTip.SetToolTip(pnlPreview, cardTip);
-            toolTip.SetToolTip(lblTitle, cardTip);
-            toolTip.SetToolTip(lblSub, cardTip);
+            toolTip.SetToolTip(card, cardTip);
 
             return card;
         }
@@ -3739,12 +3837,12 @@ namespace PasteImageAsFile
             ThreadPool.QueueUserWorkItem(_ => {
                 try
                 {
-                    // Пауза для надежного закрытия окна и переключения фокуса Windows
-                    Thread.Sleep(wasPinned ? 60 : 120);
+                    // Короткая пауза для закрытия окна (если не закреплено) и активации целевого окна
+                    Thread.Sleep(wasPinned ? 25 : 45);
                     if (targetWnd != IntPtr.Zero)
                     {
                         Program.ForceForegroundWindow(targetWnd);
-                        Thread.Sleep(80);
+                        Thread.Sleep(35);
                     }
 
                     // Сброс модификаторов (Alt, Shift, Win), если они остались зажатыми
@@ -3756,7 +3854,7 @@ namespace PasteImageAsFile
                     keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
                     Thread.Sleep(15);
                     keybd_event(VK_V, 0, 0, UIntPtr.Zero);
-                    Thread.Sleep(30);
+                    Thread.Sleep(25);
                     keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                     Thread.Sleep(15);
                     keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
@@ -4039,52 +4137,36 @@ namespace PasteImageAsFile
                     }
 
                     currentInstance = new ClipboardFlyoutForm(prevFg);
+                    currentInstance.SwitchMainTab(0);
                     currentInstance.RefreshItems();
 
-                    int x = cursor.X - currentInstance.Width / 2;
+                    // Позиционируем окно рядом с курсором мыши
+                    int x = cursor.X + 14;
+                    int y = cursor.Y - 36;
 
-                    // Учет вертикального положения панели задач
-                    int y;
-                    if (scr.WorkingArea.Top > scr.Bounds.Top + 10)
+                    if (x + currentInstance.Width > scr.WorkingArea.Right - 8)
                     {
-                        y = scr.WorkingArea.Top + 8;
+                        x = cursor.X - currentInstance.Width - 14;
                     }
-                    else if (scr.WorkingArea.Bottom < scr.Bounds.Bottom - 10)
-                    {
-                        y = scr.WorkingArea.Bottom - currentInstance.Height - 8;
-                    }
-                    else
-                    {
-                        if (cursor.Y < scr.Bounds.Top + scr.Bounds.Height / 2)
-                        {
-                            y = scr.WorkingArea.Top + 8;
-                        }
-                        else
-                        {
-                            y = scr.WorkingArea.Bottom - currentInstance.Height - 8;
-                        }
-                    }
-
-                    // Учет боковой панели задач
-                    if (scr.WorkingArea.Left > scr.Bounds.Left + 10)
+                    if (x < scr.WorkingArea.Left + 8)
                     {
                         x = scr.WorkingArea.Left + 8;
                     }
-                    else if (scr.WorkingArea.Right < scr.Bounds.Right - 10)
+
+                    if (y + currentInstance.Height > scr.WorkingArea.Bottom - 8)
                     {
-                        x = scr.WorkingArea.Right - currentInstance.Width - 8;
+                        y = scr.WorkingArea.Bottom - currentInstance.Height - 8;
                     }
-                    else
+                    if (y < scr.WorkingArea.Top + 8)
                     {
-                        if (x < scr.WorkingArea.Left + 8) x = scr.WorkingArea.Left + 8;
-                        if (x + currentInstance.Width > scr.WorkingArea.Right - 8) x = scr.WorkingArea.Right - currentInstance.Width - 8;
+                        y = scr.WorkingArea.Top + 8;
                     }
 
                     bool isFromBottom = (y > scr.Bounds.Top + scr.Bounds.Height / 2);
                     currentInstance.UpdateSubBarLayout();
                     currentInstance.AnimateIn(new Point(x, y), isFromBottom);
 
-                    Logger.Log(string.Format("Flyout shown at ({0},{1}) on {2} with prevFg={3}", x, y, scr.DeviceName, prevFg));
+                    Logger.Log(string.Format("Flyout shown near cursor at ({0},{1}) on {2} with prevFg={3}", x, y, scr.DeviceName, prevFg));
                 }
             }
             catch (Exception ex)
@@ -4095,7 +4177,7 @@ namespace PasteImageAsFile
 
         public static void ShowDockFlyout(Screen scr, string position, IntPtr prevFg, bool initialSuperHubTab = true, Rectangle markerBounds = default(Rectangle))
         {
-            Logger.Log(string.Format("ShowDockFlyout entered: position={0}, prevFg={1}", position, prevFg));
+            Logger.Log(string.Format("ShowDockFlyout entered: position={0}, prevFg={1}, superHub={2}", position, prevFg, initialSuperHubTab));
             try
             {
                 lock (instanceLock)
@@ -4122,10 +4204,7 @@ namespace PasteImageAsFile
 
                     if (currentInstance != null && !currentInstance.IsDisposed && currentInstance.Visible)
                     {
-                        if (initialSuperHubTab)
-                        {
-                            currentInstance.SwitchMainTab(1);
-                        }
+                        currentInstance.SwitchMainTab(initialSuperHubTab ? 1 : 0);
                         currentInstance.UpdateSubBarLayout();
                         currentInstance.BringToFront();
                         SetForegroundWindow(currentInstance.Handle);
@@ -4143,14 +4222,7 @@ namespace PasteImageAsFile
                     currentInstance.isDockFlyout = true;
                     currentInstance.currentDockScreen = scr;
 
-                    if (initialSuperHubTab)
-                    {
-                        currentInstance.SwitchMainTab(1);
-                    }
-                    else
-                    {
-                        currentInstance.RefreshItems();
-                    }
+                    currentInstance.SwitchMainTab(initialSuperHubTab ? 1 : 0);
                     currentInstance.UpdateSubBarLayout();
 
                     currentInstance.dockPositionMode = position ?? "";
@@ -4584,24 +4656,26 @@ namespace PasteImageAsFile
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float cx = r.X + r.Width / 2f;
             float cy = r.Y + r.Height / 2f;
-            float outerR = 6.2f;
-            float innerR = 4.2f;
-            float holeR = 2.2f;
+            float outerR = 6.8f;
+            float bodyR = 4.7f;
+            float holeR = 1.9f;
 
-            using (var pen = new Pen(color, 1.4f))
-            using (var brush = new SolidBrush(color))
+            using (var toothPen = new Pen(color, 2.0f))
+            using (var bodyPen = new Pen(color, 1.5f))
             {
-                g.DrawEllipse(pen, cx - innerR, cy - innerR, innerR * 2, innerR * 2);
+                toothPen.StartCap = LineCap.Round;
+                toothPen.EndCap = LineCap.Round;
                 for (int i = 0; i < 8; i++)
                 {
                     double angle = i * Math.PI / 4.0;
-                    float x1 = (float)(cx + Math.Cos(angle) * (innerR - 0.5f));
-                    float y1 = (float)(cy + Math.Sin(angle) * (innerR - 0.5f));
+                    float x1 = (float)(cx + Math.Cos(angle) * (bodyR - 0.2f));
+                    float y1 = (float)(cy + Math.Sin(angle) * (bodyR - 0.2f));
                     float x2 = (float)(cx + Math.Cos(angle) * outerR);
                     float y2 = (float)(cy + Math.Sin(angle) * outerR);
-                    g.DrawLine(pen, x1, y1, x2, y2);
+                    g.DrawLine(toothPen, x1, y1, x2, y2);
                 }
-                g.DrawEllipse(pen, cx - holeR, cy - holeR, holeR * 2, holeR * 2);
+                g.DrawEllipse(bodyPen, cx - bodyR, cy - bodyR, bodyR * 2f, bodyR * 2f);
+                g.DrawEllipse(bodyPen, cx - holeR, cy - holeR, holeR * 2f, holeR * 2f);
             }
         }
 
@@ -4650,6 +4724,70 @@ namespace PasteImageAsFile
                     needlePen.EndCap = LineCap.Round;
                     g.DrawLine(needlePen, cx, cy + 1.8f, cx, cy + 6.8f);
                 }
+            }
+        }
+
+        private static void DrawWin11PinIcon(Graphics g, Rectangle r, Color color, bool isPinned)
+        {
+            GraphicsState state = g.Save();
+            try
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.TranslateTransform(cx, cy);
+                g.RotateTransform(45f);
+
+                using (var pen = new Pen(color, 1.35f))
+                using (var brush = new SolidBrush(color))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    pen.LineJoin = LineJoin.Round;
+
+                    // Верхняя шляпка булавки
+                    g.DrawLine(pen, -3.5f, -5.8f, 3.5f, -5.8f);
+
+                    // Трапециевидное тело булавки
+                    PointF[] body = new PointF[] {
+                        new PointF(-2.5f, -5.8f),
+                        new PointF(2.5f, -5.8f),
+                        new PointF(3.6f, 0.2f),
+                        new PointF(-3.6f, 0.2f)
+                    };
+                    if (isPinned)
+                    {
+                        g.FillPolygon(brush, body);
+                    }
+                    else
+                    {
+                        g.DrawPolygon(pen, body);
+                    }
+
+                    // Нижний фланец
+                    g.DrawLine(pen, -4.4f, 0.2f, 4.4f, 0.2f);
+
+                    // Игла булавки
+                    g.DrawLine(pen, 0f, 0.4f, 0f, 6.2f);
+                }
+            }
+            finally
+            {
+                g.Restore(state);
+            }
+        }
+
+        private static void DrawMoreDotsIcon(Graphics g, Rectangle r, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float cx = r.X + r.Width / 2f;
+            float cy = r.Y + r.Height / 2f;
+            float dotR = 1.35f;
+            using (var brush = new SolidBrush(color))
+            {
+                g.FillEllipse(brush, cx - 5.5f - dotR, cy - dotR, dotR * 2f, dotR * 2f);
+                g.FillEllipse(brush, cx - dotR, cy - dotR, dotR * 2f, dotR * 2f);
+                g.FillEllipse(brush, cx + 5.5f - dotR, cy - dotR, dotR * 2f, dotR * 2f);
             }
         }
 
@@ -4876,6 +5014,7 @@ namespace PasteImageAsFile
                 form.StartPosition = FormStartPosition.Manual;
                 form.Location = new Point(120, 120);
                 form.SwitchMainTab(0);
+                form.UpdateAcrylicBackdrop(form.Location);
 
                 int capturePhase = 0;
                 System.Windows.Forms.Timer captureTimer = new System.Windows.Forms.Timer();
@@ -4886,12 +5025,43 @@ namespace PasteImageAsFile
                         if (capturePhase == 0)
                         {
                             capturePhase = 1;
+                            form.UpdateAcrylicBackdrop(form.Location);
+                            form.Refresh();
                             string clipPath = Path.Combine(outDir, "flyout_clipboard.png");
                             CaptureFormBitmap(form, clipPath);
                             Logger.Log("Saved flyout_clipboard.png to " + clipPath);
 
+                            // Сохраняем также наглядный превью-снимок разделенного двухцветного маркера у края экрана
+                            try
+                            {
+                                using (Bitmap markerPreview = new Bitmap(80, 180))
+                                using (Graphics mg = Graphics.FromImage(markerPreview))
+                                {
+                                    mg.SmoothingMode = SmoothingMode.AntiAlias;
+                                    mg.Clear(Color.FromArgb(24, 24, 24));
+                                    int mx = 68;
+                                    int my = 21;
+                                    int mw = 5;
+                                    int mh = 138;
+                                    int half = (mh - 3) / 2;
+                                    using (var b1 = new SolidBrush(ThemeHelper.Accent))
+                                    using (var p1 = CreateRoundedPath(new Rectangle(mx, my, mw, half), 2))
+                                    {
+                                        mg.FillPath(b1, p1);
+                                    }
+                                    using (var b2 = new SolidBrush(ThemeHelper.SuperHubSecondaryAccent))
+                                    using (var p2 = CreateRoundedPath(new Rectangle(mx, my + half + 3, mw, mh - half - 3), 2))
+                                    {
+                                        mg.FillPath(b2, p2);
+                                    }
+                                    markerPreview.Save(Path.Combine(outDir, "superhub_marker.png"), System.Drawing.Imaging.ImageFormat.Png);
+                                }
+                            }
+                            catch {}
+
                             form.SwitchMainTab(1);
                             form.LayoutControls();
+                            form.UpdateAcrylicBackdrop(form.Location);
                             form.Refresh();
                         }
                         else if (capturePhase == 1)

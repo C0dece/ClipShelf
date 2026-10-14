@@ -81,8 +81,12 @@ namespace PasteImageAsFile
 
         // Размеры маркера у края экрана
         private const int BarThickness = 4;
-        private const int BarLength = 84;
+        private const int BarLength = 92;
+        private const int SplitBarThickness = 5;
+        private const int SplitBarLength = 138;
+        private const int SplitGap = 3;
         private const int CornerRadius = 16;
+        private const int SplitCornerRadius = 22;
 
         private static readonly List<SuperHubDockForm> activeDocks = new List<SuperHubDockForm>();
         private static readonly object instanceLock = new object();
@@ -91,6 +95,7 @@ namespace PasteImageAsFile
         private System.Windows.Forms.Timer pollTimer;
         private int hoverExpandCounter = 0;
         private bool isMouseHovering = false;
+        private int hoveredHalf = 0; // 0 = нет, 1 = первая часть (Буфер обмена), 2 = вторая часть (SuperHub)
 
         public Screen AttachedScreen { get; private set; }
 
@@ -153,6 +158,7 @@ namespace PasteImageAsFile
                     {
                         try
                         {
+                            dock.StopPollTimer();
                             dock.Hide();
                             dock.Dispose();
                         }
@@ -256,14 +262,28 @@ namespace PasteImageAsFile
             this.BackColor = ThemeHelper.Accent;
             this.Cursor = Cursors.Hand;
 
-            this.Click += delegate(object s, EventArgs e) { ExpandShelf(true); };
+            this.MouseClick += delegate(object s, MouseEventArgs e) {
+                Point screenPt = this.PointToScreen(e.Location);
+                bool openSh = ShouldOpenSuperHubAtScreenPoint(screenPt);
+                ExpandShelf(true, openSh);
+            };
 
             this.MouseEnter += (s, e) => {
                 isMouseHovering = true;
                 this.Invalidate();
             };
+            this.MouseMove += (s, e) => {
+                Point screenPt = this.PointToScreen(e.Location);
+                int newHalf = GetHalfForScreenPoint(screenPt);
+                if (newHalf != hoveredHalf)
+                {
+                    hoveredHalf = newHalf;
+                    this.Invalidate();
+                }
+            };
             this.MouseLeave += (s, e) => {
                 isMouseHovering = false;
+                hoveredHalf = 0;
                 this.Invalidate();
             };
 
@@ -297,6 +317,48 @@ namespace PasteImageAsFile
             pollTimer.Start();
         }
 
+        public void StopPollTimer()
+        {
+            if (pollTimer != null)
+            {
+                try { pollTimer.Stop(); } catch {}
+                try { pollTimer.Dispose(); } catch {}
+                pollTimer = null;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                StopPollTimer();
+            }
+            base.Dispose(disposing);
+        }
+
+        private int GetHalfForScreenPoint(Point screenPt)
+        {
+            if (!Config.SuperHubSplitMarker) return 2;
+            if (IsHorizontalPosition())
+            {
+                int midX = this.Left + this.Width / 2;
+                return (screenPt.X < midX) ? 1 : 2;
+            }
+            else
+            {
+                int midY = this.Top + this.Height / 2;
+                return (screenPt.Y < midY) ? 1 : 2;
+            }
+        }
+
+        private bool ShouldOpenSuperHubAtScreenPoint(Point screenPt)
+        {
+            if (!Config.SuperHubSplitMarker) return true;
+            // Первая часть (верхняя / левая, синяя) -> Буфер обмена (false)
+            // Вторая часть (нижняя / правая, изумрудная) -> SuperHub (true)
+            return GetHalfForScreenPoint(screenPt) == 2;
+        }
+
         private void OnDragEnter(object sender, DragEventArgs e)
         {
             if (ClipboardFlyoutForm.IsOurInternalDrag(e.Data))
@@ -307,7 +369,7 @@ namespace PasteImageAsFile
             if (ImageDropHelper.HasDropData(e.Data))
             {
                 e.Effect = DragDropEffects.Copy;
-                ExpandShelf();
+                ExpandShelf(false, true);
             }
         }
 
@@ -321,7 +383,7 @@ namespace PasteImageAsFile
             try
             {
                 ClipboardHistoryManager.Instance.AddFromDataObject(e.Data, true);
-                ExpandShelf();
+                ExpandShelf(false, true);
             }
             catch (Exception ex)
             {
@@ -432,6 +494,11 @@ namespace PasteImageAsFile
 
         private void OnPollTick(object sender, EventArgs e)
         {
+            if (this.IsDisposed)
+            {
+                StopPollTimer();
+                return;
+            }
             if (!Config.SuperHubEnabled)
             {
                 if (this.Visible) this.Visible = false;
@@ -486,20 +553,33 @@ namespace PasteImageAsFile
 
             if (isOverUs)
             {
+                int half = GetHalfForScreenPoint(cur);
+                if (half != hoveredHalf)
+                {
+                    hoveredHalf = half;
+                    this.Invalidate();
+                }
+
                 hoverExpandCounter++;
                 if (hoverExpandCounter >= 1) // Мгновенный отклик при наведении прямо на маркер
                 {
                     hoverExpandCounter = 0;
-                    ExpandShelf(false);
+                    bool openSh = ShouldOpenSuperHubAtScreenPoint(cur);
+                    ExpandShelf(false, openSh);
                 }
             }
             else
             {
+                if (hoveredHalf != 0)
+                {
+                    hoveredHalf = 0;
+                    this.Invalidate();
+                }
                 hoverExpandCounter = 0;
             }
         }
 
-        public void ExpandShelf(bool force = false)
+        public void ExpandShelf(bool force = false, bool openSuperHub = true)
         {
             if (!Config.SuperHubEnabled) return;
 
@@ -512,7 +592,7 @@ namespace PasteImageAsFile
             {
                 IntPtr prevFg = Program.FindLastActiveUserWindow(scr);
                 string pos = Config.GetScreenPosition(scr.DeviceName, Config.SuperHubPosition);
-                ClipboardFlyoutForm.ShowDockFlyout(scr, pos, prevFg, true, this.Bounds);
+                ClipboardFlyoutForm.ShowDockFlyout(scr, pos, prevFg, openSuperHub, this.Bounds);
             }
             catch (Exception ex)
             {
@@ -549,6 +629,58 @@ namespace PasteImageAsFile
             return pos.IndexOf("Corner", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        private static void AddLeftAnchoredCapsule(GraphicsPath path, int yStart, int segH, int w)
+        {
+            int r = Math.Min(w, segH / 2);
+            path.StartFigure();
+            path.AddLine(0, yStart + segH, 0, yStart);
+            path.AddLine(0, yStart, Math.Max(0, w - r), yStart);
+            path.AddArc(w - r * 2, yStart, r * 2, r * 2, 270, 90);
+            path.AddLine(w, yStart + r, w, yStart + segH - r);
+            path.AddArc(w - r * 2, yStart + segH - r * 2, r * 2, r * 2, 0, 90);
+            path.AddLine(Math.Max(0, w - r), yStart + segH, 0, yStart + segH);
+            path.CloseFigure();
+        }
+
+        private static void AddRightAnchoredCapsule(GraphicsPath path, int yStart, int segH, int w)
+        {
+            int r = Math.Min(w, segH / 2);
+            path.StartFigure();
+            path.AddLine(w, yStart, w, yStart + segH);
+            path.AddLine(w, yStart + segH, r, yStart + segH);
+            path.AddArc(0, yStart + segH - r * 2, r * 2, r * 2, 90, 90);
+            path.AddLine(0, yStart + segH - r, 0, yStart + r);
+            path.AddArc(0, yStart, r * 2, r * 2, 180, 90);
+            path.AddLine(r, yStart, w, yStart);
+            path.CloseFigure();
+        }
+
+        private static void AddTopAnchoredCapsule(GraphicsPath path, int xStart, int segW, int h)
+        {
+            int r = Math.Min(h, segW / 2);
+            path.StartFigure();
+            path.AddLine(xStart, 0, xStart + segW, 0);
+            path.AddLine(xStart + segW, 0, xStart + segW, Math.Max(0, h - r));
+            path.AddArc(xStart + segW - r * 2, h - r * 2, r * 2, r * 2, 0, 90);
+            path.AddLine(xStart + segW - r, h, xStart + r, h);
+            path.AddArc(xStart, h - r * 2, r * 2, r * 2, 90, 90);
+            path.AddLine(xStart, Math.Max(0, h - r), xStart, 0);
+            path.CloseFigure();
+        }
+
+        private static void AddBottomAnchoredCapsule(GraphicsPath path, int xStart, int segW, int h)
+        {
+            int r = Math.Min(h, segW / 2);
+            path.StartFigure();
+            path.AddLine(xStart + segW, h, xStart, h);
+            path.AddLine(xStart, h, xStart, r);
+            path.AddArc(xStart, 0, r * 2, r * 2, 180, 90);
+            path.AddLine(xStart + r, 0, xStart + segW - r, 0);
+            path.AddArc(xStart + segW - r * 2, 0, r * 2, r * 2, 270, 90);
+            path.AddLine(xStart + segW, r, xStart + segW, h);
+            path.CloseFigure();
+        }
+
         public void PositionCollapsed()
         {
             if (!Config.SuperHubEnabled)
@@ -561,54 +693,59 @@ namespace PasteImageAsFile
             Rectangle work = scr.WorkingArea;
             string pos = Config.GetScreenPosition(scr.DeviceName, Config.SuperHubPosition);
 
-            int x = 0, y = 0, w = BarThickness, h = BarLength;
+            bool split = Config.SuperHubSplitMarker;
+            int barThick = split ? SplitBarThickness : BarThickness;
+            int barLen = split ? SplitBarLength : BarLength;
+            int cornerRad = split ? SplitCornerRadius : CornerRadius;
+
+            int x = 0, y = 0, w = barThick, h = barLen;
 
             if (string.Equals(pos, "CornerBottomRight", StringComparison.OrdinalIgnoreCase))
             {
-                w = CornerRadius;
-                h = CornerRadius;
+                w = cornerRad;
+                h = cornerRad;
                 x = work.Right - w;
                 y = work.Bottom - h;
             }
             else if (string.Equals(pos, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
             {
-                w = CornerRadius;
-                h = CornerRadius;
+                w = cornerRad;
+                h = cornerRad;
                 x = work.Left;
                 y = work.Bottom - h;
             }
             else if (string.Equals(pos, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
             {
-                w = CornerRadius;
-                h = CornerRadius;
+                w = cornerRad;
+                h = cornerRad;
                 x = work.Right - w;
                 y = work.Top;
             }
             else if (string.Equals(pos, "CornerTopLeft", StringComparison.OrdinalIgnoreCase))
             {
-                w = CornerRadius;
-                h = CornerRadius;
+                w = cornerRad;
+                h = cornerRad;
                 x = work.Left;
                 y = work.Top;
             }
             else if (string.Equals(pos, "TopCenter", StringComparison.OrdinalIgnoreCase))
             {
-                w = BarLength;
-                h = BarThickness;
+                w = barLen;
+                h = barThick;
                 x = work.Left + (work.Width - w) / 2;
                 y = work.Top;
             }
             else if (string.Equals(pos, "BottomCenter", StringComparison.OrdinalIgnoreCase))
             {
-                w = BarLength;
-                h = BarThickness;
+                w = barLen;
+                h = barThick;
                 x = work.Left + (work.Width - w) / 2;
                 y = work.Bottom - h;
             }
             else if (pos.StartsWith("Left", StringComparison.OrdinalIgnoreCase))
             {
-                w = BarThickness;
-                h = BarLength;
+                w = barThick;
+                h = barLen;
                 x = work.Left;
                 if (pos.EndsWith("Top", StringComparison.OrdinalIgnoreCase)) y = work.Top + 24;
                 else if (pos.EndsWith("Bottom", StringComparison.OrdinalIgnoreCase)) y = work.Bottom - h - 24;
@@ -616,8 +753,8 @@ namespace PasteImageAsFile
             }
             else // Right (RightCenter, RightTop, RightBottom)
             {
-                w = BarThickness;
-                h = BarLength;
+                w = barThick;
+                h = barLen;
                 x = work.Right - w;
                 if (pos.EndsWith("Top", StringComparison.OrdinalIgnoreCase)) y = work.Top + 24;
                 else if (pos.EndsWith("Bottom", StringComparison.OrdinalIgnoreCase)) y = work.Bottom - h - 24;
@@ -627,8 +764,7 @@ namespace PasteImageAsFile
             this.SetBounds(x, y, w, h);
 
             // Создание скругленного региона маркера:
-            // Сторона, прилегающая к краю монитора — строго ПРЯМАЯ.
-            // Сторона, смотрящая внутрь экрана — скруглена в углах.
+            // В режиме разделения (split) — две отдельные капсулы с зазором SplitGap посередине.
             try
             {
                 using (var path = new GraphicsPath())
@@ -654,51 +790,55 @@ namespace PasteImageAsFile
                     }
                     else if (pos.StartsWith("Left", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Прижат слева к краю монитора: скругление только справа внутрь экрана
-                        int r = w;
-                        path.AddLine(0, h, 0, 0);
-                        path.AddLine(0, 0, Math.Max(0, w - r), 0);
-                        path.AddArc(w - r * 2, 0, r * 2, r * 2, 270, 90);
-                        path.AddLine(w, r, w, h - r);
-                        path.AddArc(w - r * 2, h - r * 2, r * 2, r * 2, 0, 90);
-                        path.AddLine(Math.Max(0, w - r), h, 0, h);
-                        path.CloseFigure();
+                        if (split)
+                        {
+                            int segH = (h - SplitGap) / 2;
+                            AddLeftAnchoredCapsule(path, 0, segH, w);
+                            AddLeftAnchoredCapsule(path, segH + SplitGap, h - (segH + SplitGap), w);
+                        }
+                        else
+                        {
+                            AddLeftAnchoredCapsule(path, 0, h, w);
+                        }
                     }
                     else if (string.Equals(pos, "TopCenter", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Прижат сверху к краю монитора: скругление только снизу
-                        int r = h;
-                        path.AddLine(0, 0, w, 0);
-                        path.AddLine(w, 0, w, Math.Max(0, h - r));
-                        path.AddArc(w - r * 2, h - r * 2, r * 2, r * 2, 0, 90);
-                        path.AddLine(w - r, h, r, h);
-                        path.AddArc(0, h - r * 2, r * 2, r * 2, 90, 90);
-                        path.AddLine(0, Math.Max(0, h - r), 0, 0);
-                        path.CloseFigure();
+                        if (split)
+                        {
+                            int segW = (w - SplitGap) / 2;
+                            AddTopAnchoredCapsule(path, 0, segW, h);
+                            AddTopAnchoredCapsule(path, segW + SplitGap, w - (segW + SplitGap), h);
+                        }
+                        else
+                        {
+                            AddTopAnchoredCapsule(path, 0, w, h);
+                        }
                     }
                     else if (string.Equals(pos, "BottomCenter", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Прижат снизу к краю монитора: скругление только сверху
-                        int r = h;
-                        path.AddLine(w, h, 0, h);
-                        path.AddLine(0, h, 0, r);
-                        path.AddArc(0, 0, r * 2, r * 2, 180, 90);
-                        path.AddLine(r, 0, w - r, 0);
-                        path.AddArc(w - r * 2, 0, r * 2, r * 2, 270, 90);
-                        path.AddLine(w, r, w, h);
-                        path.CloseFigure();
+                        if (split)
+                        {
+                            int segW = (w - SplitGap) / 2;
+                            AddBottomAnchoredCapsule(path, 0, segW, h);
+                            AddBottomAnchoredCapsule(path, segW + SplitGap, w - (segW + SplitGap), h);
+                        }
+                        else
+                        {
+                            AddBottomAnchoredCapsule(path, 0, w, h);
+                        }
                     }
                     else
                     {
-                        // Прижат справа к краю монитора (Right*): скругление только слева внутрь экрана
-                        int r = w;
-                        path.AddLine(w, 0, w, h);
-                        path.AddLine(w, h, r, h);
-                        path.AddArc(0, h - r * 2, r * 2, r * 2, 90, 90);
-                        path.AddLine(0, h - r, 0, r);
-                        path.AddArc(0, 0, r * 2, r * 2, 180, 90);
-                        path.AddLine(r, 0, w, 0);
-                        path.CloseFigure();
+                        if (split)
+                        {
+                            int segH = (h - SplitGap) / 2;
+                            AddRightAnchoredCapsule(path, 0, segH, w);
+                            AddRightAnchoredCapsule(path, segH + SplitGap, h - (segH + SplitGap), w);
+                        }
+                        else
+                        {
+                            AddRightAnchoredCapsule(path, 0, h, w);
+                        }
                     }
                     this.Region = new Region(path);
                 }
@@ -716,10 +856,45 @@ namespace PasteImageAsFile
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            Color markerColor = isMouseHovering ? ThemeHelper.AccentHover : ThemeHelper.Accent;
-            using (var b = new SolidBrush(markerColor))
+            if (!Config.SuperHubSplitMarker)
             {
-                e.Graphics.FillRectangle(b, 0, 0, this.Width, this.Height);
+                Color markerColor = isMouseHovering ? ThemeHelper.AccentHover : ThemeHelper.Accent;
+                using (var b = new SolidBrush(markerColor))
+                {
+                    e.Graphics.FillRectangle(b, 0, 0, this.Width, this.Height);
+                }
+                return;
+            }
+
+            // Двухсекционный режим:
+            // 1-я половина (синяя) — Буфер обмена
+            // 2-я половина (изумрудная) — Полка SuperHub
+            Color firstColor = (isMouseHovering && hoveredHalf == 1) ? ThemeHelper.AccentHover : ThemeHelper.Accent;
+            Color secondColor = (isMouseHovering && hoveredHalf == 2) ? ThemeHelper.SuperHubSecondaryAccentHover : ThemeHelper.SuperHubSecondaryAccent;
+
+            if (IsHorizontalPosition())
+            {
+                int midX = this.Width / 2;
+                using (var b1 = new SolidBrush(firstColor))
+                {
+                    e.Graphics.FillRectangle(b1, 0, 0, midX, this.Height);
+                }
+                using (var b2 = new SolidBrush(secondColor))
+                {
+                    e.Graphics.FillRectangle(b2, midX, 0, this.Width - midX, this.Height);
+                }
+            }
+            else
+            {
+                int midY = this.Height / 2;
+                using (var b1 = new SolidBrush(firstColor))
+                {
+                    e.Graphics.FillRectangle(b1, 0, 0, this.Width, midY);
+                }
+                using (var b2 = new SolidBrush(secondColor))
+                {
+                    e.Graphics.FillRectangle(b2, 0, midY, this.Width, this.Height - midY);
+                }
             }
         }
     }

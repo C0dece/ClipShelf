@@ -146,7 +146,7 @@ namespace PasteImageAsFile
 
             bool isDark = ThemeHelper.IsDarkTheme();
             Color bg = isDark
-                ? (isHovered ? Color.FromArgb(24, 38, 56) : Color.FromArgb(17, 28, 42))
+                ? (isHovered ? Color.FromArgb(52, 52, 52) : Color.FromArgb(40, 40, 40))
                 : (isHovered ? Color.FromArgb(245, 248, 252) : Color.FromArgb(255, 255, 255));
 
             Color borderColor = isHovered
@@ -154,7 +154,7 @@ namespace PasteImageAsFile
                 : (isDark ? ThemeHelper.CardBorder : Color.FromArgb(215, 220, 228));
 
             Color textCol = isDark ? ThemeHelper.TextPrimary : Color.FromArgb(25, 25, 25);
-            Color arrowColor = isHovered ? ThemeHelper.Accent : (isDark ? Color.FromArgb(160, 175, 195) : Color.FromArgb(120, 120, 120));
+            Color arrowColor = isHovered ? ThemeHelper.Accent : (isDark ? Color.FromArgb(180, 180, 180) : Color.FromArgb(120, 120, 120));
 
             // 1. Скругленный фон и рамка Fluent (радиус 6px)
             Rectangle rect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
@@ -216,7 +216,7 @@ namespace PasteImageAsFile
             bool isDark = ThemeHelper.IsDarkTheme();
             bool isSelected = (e.State & DrawItemState.Selected) != 0;
 
-            Color bg = isDark ? Color.FromArgb(17, 28, 42) : Color.FromArgb(255, 255, 255);
+            Color bg = isDark ? Color.FromArgb(40, 40, 40) : Color.FromArgb(255, 255, 255);
             using (var brush = new SolidBrush(bg))
             {
                 g.FillRectangle(brush, e.Bounds);
@@ -225,7 +225,7 @@ namespace PasteImageAsFile
             if (isSelected)
             {
                 Rectangle highlightRect = new Rectangle(e.Bounds.Left + 3, e.Bounds.Top + 1, e.Bounds.Width - 6, e.Bounds.Height - 2);
-                Color highlightBg = isDark ? Color.FromArgb(30, 48, 72) : Color.FromArgb(232, 240, 250);
+                Color highlightBg = isDark ? Color.FromArgb(58, 58, 58) : Color.FromArgb(232, 240, 250);
                 using (var hBrush = new SolidBrush(highlightBg))
                 using (var path = MainForm.CreateRoundedPath(highlightRect, 4))
                 {
@@ -340,7 +340,7 @@ namespace PasteImageAsFile
         {
             bool isDark = ThemeHelper.IsDarkTheme();
             Color bg = isDark
-                ? (isHovered || isFocused ? Color.FromArgb(24, 38, 56) : Color.FromArgb(17, 28, 42))
+                ? (isHovered || isFocused ? Color.FromArgb(52, 52, 52) : Color.FromArgb(40, 40, 40))
                 : (isHovered || isFocused ? Color.FromArgb(245, 248, 252) : Color.FromArgb(255, 255, 255));
             Color textCol = isDark ? ThemeHelper.TextPrimary : Color.FromArgb(25, 25, 25);
 
@@ -359,7 +359,7 @@ namespace PasteImageAsFile
 
             bool isDark = ThemeHelper.IsDarkTheme();
             Color bg = isDark
-                ? (isHovered || isFocused ? Color.FromArgb(24, 38, 56) : Color.FromArgb(17, 28, 42))
+                ? (isHovered || isFocused ? Color.FromArgb(52, 52, 52) : Color.FromArgb(40, 40, 40))
                 : (isHovered || isFocused ? Color.FromArgb(245, 248, 252) : Color.FromArgb(255, 255, 255));
 
             Color borderColor = (isFocused || isHovered)
@@ -608,6 +608,8 @@ namespace PasteImageAsFile
 
         // Элементы страницы "Буфер обмена"
         private FluentComboBox cmbClipboardClickAction;
+        private FluentComboBox cmbClipboardHotkey;
+        private CheckBox chkDisableWinClipboardHistory;
         private CheckBox chkTrayClickOpensClipboard;
         private CheckBox chkShowHistoryMenu;
         private CheckBox chkHistoryRememberText;
@@ -615,9 +617,13 @@ namespace PasteImageAsFile
 
         // Элементы страницы "SuperHub"
         private CheckBox chkSuperHubEnabled;
+        private CheckBox chkSuperHubSplitMarker;
         private CheckBox chkSuperHubFoldersEnabled;
         private Panel pnlScreensBox;
         private readonly List<CheckBox> chkScreenList = new List<CheckBox>();
+        private FluentComboBox cmbSuperHubAccentColor;
+        private Panel pnlSuperHubAccentPreview;
+        private FluentComboBox cmbSuperHubAddHotkey;
         private FluentComboBox cmbSuperHubViewMode;
         private FluentComboBox cmbSuperHubSize;
         private FluentComboBox cmbSuperHubPosition;
@@ -670,9 +676,9 @@ namespace PasteImageAsFile
             this.SuspendLayout();
 
             this.Text = "PasteImageAsFile - Настройки";
-            this.Size = new Size(514, 694);
-            this.MinimumSize = new Size(514, 694);
-            this.MaximumSize = new Size(514, 694);
+            this.Size = new Size(514, 720);
+            this.MinimumSize = new Size(514, 720);
+            this.MaximumSize = new Size(514, 720);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
@@ -965,8 +971,8 @@ namespace PasteImageAsFile
                 }
             };
 
-            // 5. Единая карточка настроек (Settings Card Container) - 356px, просторная, с красивыми отступами
-            pnlSettingsCard = CreateCard(16, 266, 482, 356);
+            // 5. Единая карточка настроек (Settings Card Container) - 382px, просторная, с красивыми отступами
+            pnlSettingsCard = CreateCard(16, 266, 482, 382);
 
             // Страница 1: Основные
             pnlPageGeneral = new Panel
@@ -1003,7 +1009,7 @@ namespace PasteImageAsFile
             // 6. Подвал (Footer)
             pnlFooter = new Panel
             {
-                Location = new Point(16, 634),
+                Location = new Point(16, 660),
                 Size = new Size(482, 42),
                 BackColor = ThemeHelper.Background
             };
@@ -1248,8 +1254,8 @@ namespace PasteImageAsFile
 
         private void BuildClipboardPage()
         {
-            int top = 10;
-            int step = 28;
+            int top = 8;
+            int step = 25;
 
             Label lblAction = new Label
             {
@@ -1268,7 +1274,52 @@ namespace PasteImageAsFile
             pnlPageClipboard.Controls.Add(lblAction);
             pnlPageClipboard.Controls.Add(cmbClipboardClickAction);
 
-            top += 36;
+            top += 34;
+
+            Label lblHotkey = new Label
+            {
+                Text = "Горячая клавиша вызова буфера:",
+                Font = new Font("Segoe UI Semibold", 9f),
+                Location = new Point(14, top + 4),
+                AutoSize = true
+            };
+            cmbClipboardHotkey = CreateStyledComboBox(220, top, 230);
+            cmbClipboardHotkey.Items.AddRange(new object[] {
+                "Win + V (Вместо системного)",
+                "Ctrl + Shift + V",
+                "Alt + V",
+                "Ctrl + ~ (Тильда)",
+                "Отключено"
+            });
+            cmbClipboardHotkey.SelectedIndexChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                string hk = "Win+V";
+                switch (cmbClipboardHotkey.SelectedIndex)
+                {
+                    case 0: hk = "Win+V"; break;
+                    case 1: hk = "Ctrl+Shift+V"; break;
+                    case 2: hk = "Alt+V"; break;
+                    case 3: hk = "Ctrl+~"; break;
+                    case 4: hk = "None"; break;
+                }
+                Config.ClipboardHotkey = hk;
+                ClipboardListenerWindow.ReloadAllHotkeys();
+            };
+            toolTip.SetToolTip(cmbClipboardHotkey, "Клавиша для мгновенного вызова нашего буфера обмена Windows 11 в любом приложении");
+            pnlPageClipboard.Controls.Add(lblHotkey);
+            pnlPageClipboard.Controls.Add(cmbClipboardHotkey);
+
+            top += 34;
+
+            chkDisableWinClipboardHistory = CreateCheckBox("Отключить стандартный буфер Windows (заменить на наш)", 14, top);
+            chkDisableWinClipboardHistory.CheckedChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                Config.DisableWinClipboardHistory = chkDisableWinClipboardHistory.Checked;
+                ClipboardListenerWindow.ReloadAllHotkeys();
+            };
+            toolTip.SetToolTip(chkDisableWinClipboardHistory, "Отключает встроенный журнал Windows (EnableClipboardHistory=0). Наш буфер обмена продолжит работать автономно!");
+            pnlPageClipboard.Controls.Add(chkDisableWinClipboardHistory);
+            top += step;
 
             chkTrayClickOpensClipboard = CreateCheckBox("Клик по значку в трее открывает буфер обмена", 14, top);
             chkTrayClickOpensClipboard.CheckedChanged += (s, e) => {
@@ -1289,7 +1340,7 @@ namespace PasteImageAsFile
             pnlPageClipboard.Controls.Add(chkShowHistoryMenu);
             top += step;
 
-            chkHistoryRememberText = CreateCheckBox("Запоминать скопированный текст", 14, top);
+            chkHistoryRememberText = CreateCheckBox("Запоминать скопированный текст и ссылки", 14, top);
             chkHistoryRememberText.CheckedChanged += (s, e) => {
                 if (isInitializingConfig) return;
                 Config.HistoryRememberText = chkHistoryRememberText.Checked;
@@ -1305,12 +1356,12 @@ namespace PasteImageAsFile
             };
             toolTip.SetToolTip(chkHistoryRememberFiles, "Вести историю скопированных путей к файлам с отображением системных иконок");
             pnlPageClipboard.Controls.Add(chkHistoryRememberFiles);
-            top += step + 6;
+            top += step + 4;
 
             Panel pnlClipboardHelp = new Panel
             {
                 Location = new Point(14, top),
-                Size = new Size(446, 88),
+                Size = new Size(446, 68),
                 BackColor = Color.Transparent
             };
             pnlClipboardHelp.Paint += (s, e) => {
@@ -1319,7 +1370,7 @@ namespace PasteImageAsFile
                 Rectangle rect = new Rectangle(0, 0, pnlClipboardHelp.Width - 1, pnlClipboardHelp.Height - 1);
                 using (var path = CreateRoundedPath(rect, 6))
                 {
-                    using (var b = new SolidBrush(ThemeHelper.IsDarkTheme() ? Color.FromArgb(16, 26, 38) : Color.FromArgb(242, 245, 249)))
+                    using (var b = new SolidBrush(ThemeHelper.IsDarkTheme() ? Color.FromArgb(38, 38, 38) : Color.FromArgb(242, 245, 249)))
                     {
                         g.FillPath(b, path);
                     }
@@ -1332,13 +1383,12 @@ namespace PasteImageAsFile
 
             Label lblHint = new Label
             {
-                Text = "Советы по использованию:\n" +
-                       "• Двойной клик по карточке запускает файл или ссылку.\n" +
-                       "• Перетаскивание карточки наружу копирует файл в нужную папку.\n" +
-                       "• Кнопка в шапке меняет режим: [Вставлять] или [Копировать].",
-                Location = new Point(10, 8),
-                Size = new Size(426, 72),
-                Font = new Font("Segoe UI", 8.5f),
+                Text = "• Наш буфер обмена работает автономно (даже если системный буфер Windows отключен).\n" +
+                       "• Двойной клик по карточке открывает файл/ссылку; перетаскивание копирует файл.\n" +
+                       "• Наведение на синюю часть маркера у края экрана сразу открывает Буфер обмена.",
+                Location = new Point(10, 7),
+                Size = new Size(426, 54),
+                Font = new Font("Segoe UI", 8.25f),
                 ForeColor = ThemeHelper.TextSecondary
             };
             pnlClipboardHelp.Controls.Add(lblHint);
@@ -1347,8 +1397,8 @@ namespace PasteImageAsFile
 
         private void BuildSuperHubPage()
         {
-            int top = 6;
-            int step = 31;
+            int top = 4;
+            int step = 29;
 
             chkSuperHubEnabled = CreateCheckBox("Включить плавающую полку SuperHub у края экрана", 14, top);
             chkSuperHubEnabled.CheckedChanged += (s, e) => {
@@ -1358,24 +1408,48 @@ namespace PasteImageAsFile
             };
             toolTip.SetToolTip(chkSuperHubEnabled, "Выдвижная полка для временного накопления и переноса файлов между программами");
             pnlPageSuperHub.Controls.Add(chkSuperHubEnabled);
-            top += 24;
+            top += 21;
+
+            chkSuperHubSplitMarker = CreateCheckBox("Двухцветный маркер у края экрана (Буфер обмена / SuperHub)", 14, top);
+            chkSuperHubSplitMarker.CheckedChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                Config.SuperHubSplitMarker = chkSuperHubSplitMarker.Checked;
+                SuperHubDockForm.RepositionAllDocks();
+            };
+            toolTip.SetToolTip(chkSuperHubSplitMarker, "Разделяет маркер у края экрана на 2 части: первая половина открывает Буфер обмена, вторая — SuperHub");
+            pnlPageSuperHub.Controls.Add(chkSuperHubSplitMarker);
+            top += 21;
+
+            // Чекбокс включения папок (вкладки) в SuperHub
+            chkSuperHubFoldersEnabled = CreateCheckBox("Включить папки (вкладки коллекций) в SuperHub", 14, top);
+            chkSuperHubFoldersEnabled.CheckedChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                Config.SuperHubFoldersEnabled = chkSuperHubFoldersEnabled.Checked;
+                if (ClipboardFlyoutForm.CurrentInstance != null && !ClipboardFlyoutForm.CurrentInstance.IsDisposed)
+                {
+                    ClipboardFlyoutForm.CurrentInstance.SwitchMainTab(1);
+                }
+            };
+            toolTip.SetToolTip(chkSuperHubFoldersEnabled, "Отображает подтабы папок, в которые можно группировать файлы и заметки");
+            pnlPageSuperHub.Controls.Add(chkSuperHubFoldersEnabled);
+            top += 21;
 
             // 0. Экраны (Мульти-выбор мониторов)
             Label lblScreens = new Label
             {
                 Text = "Отображать полку на экранах (отметьте нужные мониторы):",
-                Font = new Font("Segoe UI Semibold", 9f),
-                Location = new Point(14, top + 3),
+                Font = new Font("Segoe UI Semibold", 8.75f),
+                Location = new Point(14, top),
                 AutoSize = true
             };
             pnlPageSuperHub.Controls.Add(lblScreens);
-            top += 21;
+            top += 18;
 
             pnlScreensBox = new Panel
             {
                 Location = new Point(14, top),
-                Size = new Size(446, 52),
-                BackColor = ThemeHelper.IsDarkTheme() ? Color.FromArgb(18, 28, 40) : Color.FromArgb(242, 245, 250),
+                Size = new Size(446, 40),
+                BackColor = ThemeHelper.IsDarkTheme() ? Color.FromArgb(38, 38, 38) : Color.FromArgb(242, 245, 250),
                 AutoScroll = true
             };
             pnlScreensBox.Paint += (s, e) => {
@@ -1391,7 +1465,7 @@ namespace PasteImageAsFile
             pnlPageSuperHub.Controls.Add(pnlScreensBox);
 
             Screen[] screens = Screen.AllScreens;
-            int scrY = 4;
+            int scrY = 3;
             chkScreenList.Clear();
             for (int i = 0; i < screens.Length; i++)
             {
@@ -1408,24 +1482,136 @@ namespace PasteImageAsFile
                 };
                 pnlScreensBox.Controls.Add(chkScr);
                 chkScreenList.Add(chkScr);
-                scrY += 22;
+                scrY += 19;
             }
-            if (scrY > 52) pnlScreensBox.Height = Math.Min(74, scrY + 4);
-            top += pnlScreensBox.Height + 7;
+            if (scrY > 40) pnlScreensBox.Height = Math.Min(44, scrY + 2);
+            top += pnlScreensBox.Height + 5;
 
-            // Чекбокс включения папок (вкладок) в SuperHub
-            chkSuperHubFoldersEnabled = CreateCheckBox("Включить папки (вкладки браузера) в SuperHub", 14, top);
-            chkSuperHubFoldersEnabled.CheckedChanged += (s, e) => {
-                if (isInitializingConfig) return;
-                Config.SuperHubFoldersEnabled = chkSuperHubFoldersEnabled.Checked;
-                if (ClipboardFlyoutForm.CurrentInstance != null && !ClipboardFlyoutForm.CurrentInstance.IsDisposed)
+            // Акцентный цвет SuperHub
+            Label lblHubAccent = new Label
+            {
+                Text = "Акцентный цвет SuperHub:",
+                Font = new Font("Segoe UI Semibold", 9f),
+                Location = new Point(14, top + 4),
+                AutoSize = true
+            };
+            cmbSuperHubAccentColor = CreateStyledComboBox(220, top, 192);
+            cmbSuperHubAccentColor.Items.AddRange(new object[] {
+                "Изумрудный (Green)",
+                "Бирюзовый (Teal)",
+                "Синий (Windows Blue)",
+                "Фиолетовый (Purple)",
+                "Коралловый (Coral)",
+                "Оранжевый (Orange)",
+                "Золотой (Amber)",
+                "Свой цвет..."
+            });
+
+            pnlSuperHubAccentPreview = new Panel
+            {
+                Location = new Point(418, top),
+                Size = new Size(32, 28),
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+            pnlSuperHubAccentPreview.Paint += (s, e) => {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                Color parentBg = GetRealParentBackColor(pnlSuperHubAccentPreview, ThemeHelper.CardBackground);
+                g.Clear(parentBg);
+
+                Rectangle rect = new Rectangle(0, 0, pnlSuperHubAccentPreview.Width - 1, pnlSuperHubAccentPreview.Height - 1);
+                using (var path = CreateRoundedPath(rect, 6))
                 {
-                    ClipboardFlyoutForm.CurrentInstance.SwitchMainTab(1);
+                    using (var b = new SolidBrush(ThemeHelper.SuperHubSecondaryAccent))
+                    {
+                        g.FillPath(b, path);
+                    }
+                    using (var pen = new Pen(ThemeHelper.CardBorder, 1))
+                    {
+                        g.DrawPath(pen, path);
+                    }
                 }
             };
-            toolTip.SetToolTip(chkSuperHubFoldersEnabled, "Отображает подтабы папок (как вкладки в браузере), в которые можно группировать файлы и заметки");
-            pnlPageSuperHub.Controls.Add(chkSuperHubFoldersEnabled);
-            top += 26;
+            toolTip.SetToolTip(pnlSuperHubAccentPreview, "Кликните, чтобы выбрать произвольный цвет для полки и маркера SuperHub");
+
+            Action pickSuperHubCustomColor = () => {
+                using (ColorDialog cd = new ColorDialog())
+                {
+                    cd.Color = ThemeHelper.SuperHubSecondaryAccent;
+                    cd.FullOpen = true;
+                    if (cd.ShowDialog() == DialogResult.OK)
+                    {
+                        string hex = string.Format("#{0:X2}{1:X2}{2:X2}", cd.Color.R, cd.Color.G, cd.Color.B);
+                        Config.SuperHubAccentColor = hex;
+                        pnlSuperHubAccentPreview.BackColor = cd.Color;
+                        pnlSuperHubAccentPreview.Invalidate();
+                        ThemeHelper.NotifyThemeChanged();
+                        SuperHubDockForm.RepositionAllDocks();
+                        if (cmbSuperHubAccentColor != null) cmbSuperHubAccentColor.SelectedIndex = 7;
+                    }
+                }
+            };
+            pnlSuperHubAccentPreview.Click += (s, e) => pickSuperHubCustomColor();
+
+            cmbSuperHubAccentColor.SelectedIndexChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                string chosenHex = "#10B981";
+                switch (cmbSuperHubAccentColor.SelectedIndex)
+                {
+                    case 0: chosenHex = "#10B981"; break;
+                    case 1: chosenHex = "#008272"; break;
+                    case 2: chosenHex = "#0078D4"; break;
+                    case 3: chosenHex = "#8764B8"; break;
+                    case 4: chosenHex = "#D13438"; break;
+                    case 5: chosenHex = "#CA5010"; break;
+                    case 6: chosenHex = "#F59E0B"; break;
+                    case 7: pickSuperHubCustomColor(); return;
+                }
+                Config.SuperHubAccentColor = chosenHex;
+                pnlSuperHubAccentPreview.BackColor = ThemeHelper.SuperHubSecondaryAccent;
+                pnlSuperHubAccentPreview.Invalidate();
+                ThemeHelper.NotifyThemeChanged();
+                SuperHubDockForm.RepositionAllDocks();
+            };
+            toolTip.SetToolTip(cmbSuperHubAccentColor, "Цвет маркера SuperHub у края экрана и акцентов вкладки SuperHub");
+            pnlPageSuperHub.Controls.Add(lblHubAccent);
+            pnlPageSuperHub.Controls.Add(cmbSuperHubAccentColor);
+            pnlPageSuperHub.Controls.Add(pnlSuperHubAccentPreview);
+            top += step;
+
+            // Горячая клавиша быстрого добавления в SuperHub
+            Label lblAddHk = new Label
+            {
+                Text = "Быстрое добавление в SuperHub:",
+                Font = new Font("Segoe UI Semibold", 9f),
+                Location = new Point(14, top + 4),
+                AutoSize = true
+            };
+            cmbSuperHubAddHotkey = CreateStyledComboBox(220, top, 230);
+            cmbSuperHubAddHotkey.Items.AddRange(new object[] {
+                "Ctrl + Alt + C",
+                "Ctrl + Shift + C",
+                "Alt + C",
+                "Отключено"
+            });
+            cmbSuperHubAddHotkey.SelectedIndexChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                string hk = "Ctrl+Alt+C";
+                switch (cmbSuperHubAddHotkey.SelectedIndex)
+                {
+                    case 0: hk = "Ctrl+Alt+C"; break;
+                    case 1: hk = "Ctrl+Shift+C"; break;
+                    case 2: hk = "Alt+C"; break;
+                    case 3: hk = "None"; break;
+                }
+                Config.SuperHubAddHotkey = hk;
+                ClipboardListenerWindow.ReloadAllHotkeys();
+            };
+            toolTip.SetToolTip(cmbSuperHubAddHotkey, "Копирует выделенный текст/файл и сразу отправляет его на полку SuperHub");
+            pnlPageSuperHub.Controls.Add(lblAddHk);
+            pnlPageSuperHub.Controls.Add(cmbSuperHubAddHotkey);
+            top += step;
 
             // 1. Режим полки (Все табы vs Только SuperHub)
             Label lblMode = new Label
@@ -1603,9 +1789,9 @@ namespace PasteImageAsFile
             toolTip.SetToolTip(cmbSuperHubSens, "Ширина зоны приближения курсора к краю экрана для автоматического выдвижения полки");
             pnlPageSuperHub.Controls.Add(lblSens);
             pnlPageSuperHub.Controls.Add(cmbSuperHubSens);
-            top += step + 4;
+            top += step + 2;
 
-            btnTestSuperHub = CreateButton("Раскрыть полку SuperHub сейчас", 14, top, 240, 28);
+            btnTestSuperHub = CreateButton("Раскрыть полку SuperHub сейчас", 14, top, 240, 26);
             btnTestSuperHub.Click += (s, e) => {
                 SuperHubDockForm dock = SuperHubDockForm.Instance;
                 if (dock != null) dock.ExpandShelf();
@@ -1717,7 +1903,7 @@ namespace PasteImageAsFile
             Color secText = ThemeHelper.TextSecondary;
             Color headerBg = ThemeHelper.HeaderBackground;
             Color cardBg = ThemeHelper.CardBackground;
-            Color inputBg = isDark ? Color.FromArgb(19, 32, 48) : Color.FromArgb(255, 255, 255);
+            Color inputBg = isDark ? Color.FromArgb(38, 38, 38) : Color.FromArgb(255, 255, 255);
 
             this.BackColor = bg;
             this.ForeColor = text;
@@ -1768,10 +1954,25 @@ namespace PasteImageAsFile
                 pnlAccentPreview.BackColor = ThemeHelper.Accent;
                 pnlAccentPreview.Invalidate();
             }
+            if (cmbSuperHubAccentColor != null)
+            {
+                cmbSuperHubAccentColor.BackColor = inputBg;
+                cmbSuperHubAccentColor.ForeColor = text;
+            }
+            if (pnlSuperHubAccentPreview != null)
+            {
+                pnlSuperHubAccentPreview.BackColor = ThemeHelper.SuperHubSecondaryAccent;
+                pnlSuperHubAccentPreview.Invalidate();
+            }
             if (cmbClipboardClickAction != null)
             {
                 cmbClipboardClickAction.BackColor = inputBg;
                 cmbClipboardClickAction.ForeColor = text;
+            }
+            if (cmbClipboardHotkey != null)
+            {
+                cmbClipboardHotkey.BackColor = inputBg;
+                cmbClipboardHotkey.ForeColor = text;
             }
             if (cmbSuperHubPosition != null)
             {
@@ -1802,6 +2003,11 @@ namespace PasteImageAsFile
                 cmbSuperHubSize.BackColor = inputBg;
                 cmbSuperHubSize.ForeColor = text;
             }
+            if (cmbSuperHubAddHotkey != null)
+            {
+                cmbSuperHubAddHotkey.BackColor = inputBg;
+                cmbSuperHubAddHotkey.ForeColor = text;
+            }
 
             // Чекбоксы
             ApplyCheckTheme(chkAutoRun);
@@ -1813,7 +2019,9 @@ namespace PasteImageAsFile
             ApplyCheckTheme(chkShowHistoryMenu);
             ApplyCheckTheme(chkHistoryRememberText);
             ApplyCheckTheme(chkHistoryRememberFiles);
+            ApplyCheckTheme(chkDisableWinClipboardHistory);
             ApplyCheckTheme(chkSuperHubEnabled);
+            ApplyCheckTheme(chkSuperHubSplitMarker);
             ApplyCheckTheme(chkSuperHubFoldersEnabled);
             foreach (var chk in chkScreenList)
             {
@@ -1821,7 +2029,7 @@ namespace PasteImageAsFile
             }
             if (pnlScreensBox != null)
             {
-                pnlScreensBox.BackColor = isDark ? Color.FromArgb(18, 28, 40) : Color.FromArgb(242, 245, 250);
+                pnlScreensBox.BackColor = isDark ? Color.FromArgb(38, 38, 38) : Color.FromArgb(242, 245, 250);
                 pnlScreensBox.Invalidate();
             }
 
@@ -1963,6 +2171,25 @@ namespace PasteImageAsFile
                     pnlAccentPreview.Invalidate();
                 }
 
+                // SuperHub Accent Color
+                if (cmbSuperHubAccentColor != null)
+                {
+                    string hubAcc = Config.SuperHubAccentColor;
+                    if (string.IsNullOrEmpty(hubAcc) || string.Equals(hubAcc, "#10B981", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 0;
+                    else if (string.Equals(hubAcc, "#008272", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 1;
+                    else if (string.Equals(hubAcc, "#0078D4", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 2;
+                    else if (string.Equals(hubAcc, "#8764B8", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 3;
+                    else if (string.Equals(hubAcc, "#D13438", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 4;
+                    else if (string.Equals(hubAcc, "#CA5010", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 5;
+                    else if (string.Equals(hubAcc, "#F59E0B", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAccentColor.SelectedIndex = 6;
+                    else cmbSuperHubAccentColor.SelectedIndex = 7;
+                }
+                if (pnlSuperHubAccentPreview != null)
+                {
+                    pnlSuperHubAccentPreview.BackColor = ThemeHelper.SuperHubSecondaryAccent;
+                    pnlSuperHubAccentPreview.Invalidate();
+                }
+
                 chkAutoRun.Checked = Config.AutoRun;
                 chkContextMenu.Checked = Config.ContextMenu;
                 chkShowHistoryMenu.Checked = Config.ShowHistoryMenu;
@@ -1973,17 +2200,46 @@ namespace PasteImageAsFile
                 chkExtractOriginalName.Checked = Config.ExtractOriginalName;
                 chkHistoryRememberText.Checked = Config.HistoryRememberText;
                 chkHistoryRememberFiles.Checked = Config.HistoryRememberFiles;
+                if (chkDisableWinClipboardHistory != null)
+                {
+                    chkDisableWinClipboardHistory.Checked = Config.DisableWinClipboardHistory;
+                }
                 txtPrefix.Text = Config.DefaultPrefix;
 
                 // Clipboard Action
                 bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
                 cmbClipboardClickAction.SelectedIndex = isPaste ? 0 : 1;
 
+                // Clipboard Hotkey
+                if (cmbClipboardHotkey != null)
+                {
+                    string clipHk = Config.ClipboardHotkey;
+                    if (string.Equals(clipHk, "Win+V", StringComparison.OrdinalIgnoreCase)) cmbClipboardHotkey.SelectedIndex = 0;
+                    else if (string.Equals(clipHk, "Ctrl+Shift+V", StringComparison.OrdinalIgnoreCase)) cmbClipboardHotkey.SelectedIndex = 1;
+                    else if (string.Equals(clipHk, "Alt+V", StringComparison.OrdinalIgnoreCase)) cmbClipboardHotkey.SelectedIndex = 2;
+                    else if (string.Equals(clipHk, "Ctrl+Tilde", StringComparison.OrdinalIgnoreCase)) cmbClipboardHotkey.SelectedIndex = 3;
+                    else cmbClipboardHotkey.SelectedIndex = 4;
+                }
+
                 // SuperHub
                 chkSuperHubEnabled.Checked = Config.SuperHubEnabled;
+                if (chkSuperHubSplitMarker != null)
+                {
+                    chkSuperHubSplitMarker.Checked = Config.SuperHubSplitMarker;
+                }
                 if (chkSuperHubFoldersEnabled != null)
                 {
                     chkSuperHubFoldersEnabled.Checked = Config.SuperHubFoldersEnabled;
+                }
+
+                // SuperHub Add Hotkey
+                if (cmbSuperHubAddHotkey != null)
+                {
+                    string addHk = Config.SuperHubAddHotkey;
+                    if (string.Equals(addHk, "Ctrl+Alt+C", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAddHotkey.SelectedIndex = 0;
+                    else if (string.Equals(addHk, "Ctrl+Shift+C", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAddHotkey.SelectedIndex = 1;
+                    else if (string.Equals(addHk, "Alt+S", StringComparison.OrdinalIgnoreCase) || string.Equals(addHk, "Alt+C", StringComparison.OrdinalIgnoreCase)) cmbSuperHubAddHotkey.SelectedIndex = 2;
+                    else cmbSuperHubAddHotkey.SelectedIndex = 3;
                 }
 
                 foreach (var chk in chkScreenList)

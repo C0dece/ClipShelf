@@ -61,50 +61,50 @@ namespace PasteImageAsFile
             return true; // Default dark
         }
 
-        // Colors based on current theme
+        // Colors based on current theme (Native Windows 11 WinUI / Clipboard Flyout palette)
         public static Color Background
         {
-            get { return IsDarkTheme() ? Color.FromArgb(14, 22, 34) : Color.FromArgb(243, 244, 246); }
+            get { return IsDarkTheme() ? Color.FromArgb(31, 31, 31) : Color.FromArgb(243, 243, 243); }
         }
 
         public static Color HeaderBackground
         {
-            get { return IsDarkTheme() ? Color.FromArgb(16, 25, 38) : Color.FromArgb(236, 238, 242); }
+            get { return IsDarkTheme() ? Color.FromArgb(31, 31, 31) : Color.FromArgb(243, 243, 243); }
         }
 
         public static Color CardBackground
         {
-            get { return IsDarkTheme() ? Color.FromArgb(19, 30, 43) : Color.FromArgb(255, 255, 255); }
+            get { return IsDarkTheme() ? Color.FromArgb(45, 45, 45) : Color.FromArgb(255, 255, 255); }
         }
 
         public static Color CardHover
         {
-            get { return IsDarkTheme() ? Color.FromArgb(24, 38, 55) : Color.FromArgb(245, 247, 250); }
+            get { return IsDarkTheme() ? Color.FromArgb(54, 54, 54) : Color.FromArgb(248, 248, 248); }
         }
 
         public static Color CardBorder
         {
-            get { return IsDarkTheme() ? Color.FromArgb(30, 45, 64) : Color.FromArgb(222, 226, 232); }
+            get { return IsDarkTheme() ? Color.FromArgb(58, 58, 58) : Color.FromArgb(226, 226, 226); }
         }
 
         public static Color CardBorderHover
         {
-            get { return IsDarkTheme() ? Color.FromArgb(46, 68, 96) : Color.FromArgb(185, 195, 208); }
+            get { return IsDarkTheme() ? Color.FromArgb(120, 120, 120) : Color.FromArgb(180, 180, 180); }
         }
 
         public static Color TextPrimary
         {
-            get { return IsDarkTheme() ? Color.FromArgb(242, 246, 250) : Color.FromArgb(25, 28, 32); }
+            get { return IsDarkTheme() ? Color.FromArgb(255, 255, 255) : Color.FromArgb(26, 26, 26); }
         }
 
         public static Color TextSecondary
         {
-            get { return IsDarkTheme() ? Color.FromArgb(122, 142, 166) : Color.FromArgb(98, 110, 124); }
+            get { return IsDarkTheme() ? Color.FromArgb(166, 166, 166) : Color.FromArgb(96, 96, 96); }
         }
 
         public static Color TextMuted
         {
-            get { return IsDarkTheme() ? Color.FromArgb(86, 106, 128) : Color.FromArgb(140, 148, 158); }
+            get { return IsDarkTheme() ? Color.FromArgb(118, 118, 118) : Color.FromArgb(140, 140, 140); }
         }
 
         public static Color Accent
@@ -120,7 +120,7 @@ namespace PasteImageAsFile
                     }
                     catch {}
                 }
-                return IsDarkTheme() ? Color.FromArgb(0, 162, 237) : Color.FromArgb(0, 120, 215);
+                return IsDarkTheme() ? Color.FromArgb(96, 205, 255) : Color.FromArgb(0, 103, 192);
             }
         }
 
@@ -146,17 +146,173 @@ namespace PasteImageAsFile
             }
         }
 
+        public static Color SuperHubSecondaryAccent
+        {
+            get
+            {
+                string custom = Config.SuperHubAccentColor;
+                if (!string.IsNullOrEmpty(custom))
+                {
+                    try
+                    {
+                        return ColorTranslator.FromHtml(custom);
+                    }
+                    catch {}
+                }
+                return Color.FromArgb(16, 185, 129); // Изумрудный Fluent по умолчанию
+            }
+        }
+
+        public static Color SuperHubSecondaryAccentHover
+        {
+            get
+            {
+                Color c = SuperHubSecondaryAccent;
+                return Color.FromArgb(
+                    Math.Min(255, c.R + 28),
+                    Math.Min(255, c.G + 28),
+                    Math.Min(255, c.B + 28));
+            }
+        }
+
+        public static Bitmap CaptureAcrylicBackdrop(Rectangle screenBounds)
+        {
+            int w = Math.Max(64, screenBounds.Width);
+            int h = Math.Max(64, screenBounds.Height);
+            Bitmap result = new Bitmap(w, h);
+            bool isDark = IsDarkTheme();
+
+            try
+            {
+                using (Bitmap rawScreen = new Bitmap(w, h))
+                {
+                    bool captured = false;
+                    try
+                    {
+                        using (Graphics gScr = Graphics.FromImage(rawScreen))
+                        {
+                            gScr.CopyFromScreen(screenBounds.Location, Point.Empty, new Size(w, h), CopyPixelOperation.SourceCopy);
+                            captured = true;
+                        }
+                    }
+                    catch {}
+
+                    int w1 = Math.Max(12, w / 6);
+                    int h1 = Math.Max(12, h / 6);
+                    int w2 = Math.Max(6, w / 18);
+                    int h2 = Math.Max(6, h / 18);
+
+                    using (Bitmap pass1 = new Bitmap(w1, h1))
+                    using (Bitmap pass2 = new Bitmap(w2, h2))
+                    {
+                        if (captured)
+                        {
+                            using (Graphics g1 = Graphics.FromImage(pass1))
+                            {
+                                g1.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                                g1.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                                g1.DrawImage(rawScreen, new Rectangle(0, 0, w1, h1));
+                            }
+                            using (Graphics g2 = Graphics.FromImage(pass2))
+                            {
+                                g2.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                                g2.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                                g2.DrawImage(pass1, new Rectangle(0, 0, w2, h2));
+                            }
+                            using (Graphics g1Back = Graphics.FromImage(pass1))
+                            {
+                                g1Back.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g1Back.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                                g1Back.DrawImage(pass2, new Rectangle(0, 0, w1, h1));
+                            }
+                        }
+
+                        using (Graphics gRes = Graphics.FromImage(result))
+                        {
+                            gRes.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                            gRes.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                            gRes.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+                            if (captured)
+                            {
+                                gRes.DrawImage(pass1, new Rectangle(0, 0, w, h));
+                            }
+                            else
+                            {
+                                gRes.Clear(isDark ? Color.FromArgb(24, 24, 26) : Color.FromArgb(242, 242, 245));
+                            }
+
+                            // Основная матовая тонировка Windows 11 Acrylic (Tint + Luminosity blend)
+                            Color tintColor = isDark
+                                ? Color.FromArgb(204, 24, 24, 26)
+                                : Color.FromArgb(212, 243, 243, 246);
+                            using (SolidBrush tintBrush = new SolidBrush(tintColor))
+                            {
+                                gRes.FillRectangle(tintBrush, 0, 0, w, h);
+                            }
+
+                            // Мягкое атмосферное свечение Acrylic (как в поиске/пуске Windows 11)
+                            if (isDark)
+                            {
+                                using (var grad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                                    new Rectangle(0, 0, w, h),
+                                    Color.FromArgb(14, 180, 195, 220),
+                                    Color.FromArgb(18, 120, 105, 85),
+                                    35f))
+                                {
+                                    gRes.FillRectangle(grad, 0, 0, w, h);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                using (Graphics gFallback = Graphics.FromImage(result))
+                {
+                    gFallback.Clear(isDark ? Color.FromArgb(28, 28, 30) : Color.FromArgb(243, 243, 243));
+                }
+            }
+
+            return result;
+        }
+
+        public static void DrawAcrylicBackground(Graphics g, Control ctrl, Form rootForm, Bitmap acrylicBackdrop)
+        {
+            if (g == null || ctrl == null) return;
+            if (acrylicBackdrop != null && rootForm != null && !rootForm.IsDisposed)
+            {
+                try
+                {
+                    Point pt = Point.Empty;
+                    Control cur = ctrl;
+                    while (cur != null && cur != rootForm)
+                    {
+                        pt.X += cur.Left;
+                        pt.Y += cur.Top;
+                        cur = cur.Parent;
+                    }
+                    Rectangle srcRect = new Rectangle(pt.X, pt.Y, ctrl.Width, ctrl.Height);
+                    g.DrawImage(acrylicBackdrop, new Rectangle(0, 0, ctrl.Width, ctrl.Height), srcRect, GraphicsUnit.Pixel);
+                    return;
+                }
+                catch {}
+            }
+            g.Clear(Background);
+        }
+
         public static Color AccentBackground
         {
             get
             {
-                Color baseCol = Accent;
                 if (IsDarkTheme())
                 {
-                    return Color.FromArgb(12, 76, 119);
+                    return Color.FromArgb(58, 58, 58);
                 }
                 else
                 {
+                    Color baseCol = Accent;
                     int r = Math.Min(255, baseCol.R + (255 - baseCol.R) * 4 / 5);
                     int g = Math.Min(255, baseCol.G + (255 - baseCol.G) * 4 / 5);
                     int b = Math.Min(255, baseCol.B + (255 - baseCol.B) * 4 / 5);
@@ -167,47 +323,47 @@ namespace PasteImageAsFile
 
         public static Color ScrollBarTrack
         {
-            get { return IsDarkTheme() ? Color.FromArgb(14, 22, 34) : Color.FromArgb(243, 244, 246); }
+            get { return IsDarkTheme() ? Color.FromArgb(31, 31, 31) : Color.FromArgb(243, 243, 243); }
         }
 
         public static Color ScrollBarThumb
         {
-            get { return IsDarkTheme() ? Color.FromArgb(45, 62, 85) : Color.FromArgb(190, 195, 202); }
+            get { return IsDarkTheme() ? Color.FromArgb(158, 158, 158) : Color.FromArgb(170, 170, 170); }
         }
 
         public static Color ScrollBarThumbHover
         {
-            get { return IsDarkTheme() ? Color.FromArgb(65, 88, 118) : Color.FromArgb(160, 168, 178); }
+            get { return IsDarkTheme() ? Color.FromArgb(195, 195, 195) : Color.FromArgb(140, 140, 140); }
         }
 
         public static Color ScrollBarThumbActive
         {
-            get { return IsDarkTheme() ? Color.FromArgb(90, 120, 160) : Color.FromArgb(130, 140, 152); }
+            get { return IsDarkTheme() ? Color.FromArgb(225, 225, 225) : Color.FromArgb(110, 110, 110); }
         }
 
         public static Color BadgeBackground
         {
-            get { return IsDarkTheme() ? Color.FromArgb(24, 38, 55) : Color.FromArgb(232, 235, 240); }
+            get { return IsDarkTheme() ? Color.FromArgb(52, 52, 52) : Color.FromArgb(232, 232, 232); }
         }
 
         public static Color BadgeText
         {
-            get { return IsDarkTheme() ? Color.FromArgb(180, 200, 225) : Color.FromArgb(60, 75, 95); }
+            get { return IsDarkTheme() ? Color.FromArgb(220, 220, 220) : Color.FromArgb(60, 60, 60); }
         }
 
         public static Color Separator
         {
-            get { return IsDarkTheme() ? Color.FromArgb(30, 45, 64) : Color.FromArgb(222, 226, 232); }
+            get { return IsDarkTheme() ? Color.FromArgb(55, 55, 55) : Color.FromArgb(224, 224, 224); }
         }
 
         public static Color ButtonHover
         {
-            get { return IsDarkTheme() ? Color.FromArgb(26, 40, 58) : Color.FromArgb(230, 234, 240); }
+            get { return IsDarkTheme() ? Color.FromArgb(52, 52, 52) : Color.FromArgb(232, 232, 232); }
         }
 
         public static Color ButtonActive
         {
-            get { return IsDarkTheme() ? Color.FromArgb(34, 52, 75) : Color.FromArgb(215, 222, 230); }
+            get { return IsDarkTheme() ? Color.FromArgb(64, 64, 64) : Color.FromArgb(218, 218, 218); }
         }
 
         public static Color ButtonPressed
