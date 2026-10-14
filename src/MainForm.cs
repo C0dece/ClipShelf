@@ -667,6 +667,7 @@ namespace PasteImageAsFile
         private Label lblVersion;
         private Button btnHeaderMinimize;
         private Button btnHeaderClose;
+        private Bitmap headerIconBmp;
 
         // Карточка статуса
         private Panel pnlStatusCard;
@@ -787,7 +788,19 @@ namespace PasteImageAsFile
             // Иконка приложения
             try
             {
-                string icoPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "app.ico");
+                string appDir = Path.GetDirectoryName(typeof(MainForm).Assembly.Location);
+                if (string.IsNullOrEmpty(appDir) || !Directory.Exists(appDir))
+                {
+                    appDir = Path.GetDirectoryName(Application.ExecutablePath);
+                }
+
+                string icoPath = Path.Combine(appDir, "app.ico");
+                if (!File.Exists(icoPath))
+                {
+                    string assetsIco = Path.Combine(appDir, @"..\assets\app.ico");
+                    if (File.Exists(assetsIco)) icoPath = assetsIco;
+                }
+
                 if (File.Exists(icoPath))
                 {
                     this.Icon = new Icon(icoPath);
@@ -795,6 +808,26 @@ namespace PasteImageAsFile
                 else
                 {
                     this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                }
+
+                string pngPath = Path.Combine(appDir, "app_icon.png");
+                if (!File.Exists(pngPath))
+                {
+                    string assetsPng = Path.Combine(appDir, @"..\assets\app_icon.png");
+                    if (File.Exists(assetsPng)) pngPath = assetsPng;
+                }
+
+                if (File.Exists(pngPath))
+                {
+                    using (var fs = new FileStream(pngPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var img = Image.FromStream(fs))
+                    {
+                        headerIconBmp = new Bitmap(img);
+                    }
+                }
+                else if (this.Icon != null)
+                {
+                    headerIconBmp = this.Icon.ToBitmap();
                 }
             }
             catch {}
@@ -813,9 +846,22 @@ namespace PasteImageAsFile
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                // Иконка приложения 36x36 слева
+                // Иконка приложения 36x36 слева во весь рост с субпиксельным сглаживанием
                 Rectangle iconRect = new Rectangle(18, 14, 36, 36);
-                if (this.Icon != null)
+                if (headerIconBmp != null)
+                {
+                    try
+                    {
+                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                        g.DrawImage(headerIconBmp, iconRect);
+                    }
+                    catch
+                    {
+                        if (this.Icon != null) g.DrawIcon(this.Icon, iconRect);
+                    }
+                }
+                else if (this.Icon != null)
                 {
                     try
                     {

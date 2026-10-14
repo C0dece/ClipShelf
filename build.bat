@@ -25,5 +25,6 @@ copy /Y dist\ClipShelf.exe dist\PasteImageAsFile.exe >nul 2>&1
 
 :: Copy icon next to exe for runtime loading
 copy /Y assets\app.ico dist\app.ico >nul
+copy /Y assets\app_icon.png dist\app_icon.png >nul 2>&1
 
 echo Done.
