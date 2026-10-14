@@ -486,6 +486,106 @@ namespace PasteImageAsFile
         }
     }
 
+    public class FluentCheckBox : CheckBox
+    {
+        private bool isHovered = false;
+
+        public FluentCheckBox()
+        {
+            SetStyle(ControlStyles.UserPaint | 
+                     ControlStyles.AllPaintingInWmPaint | 
+                     ControlStyles.OptimizedDoubleBuffer | 
+                     ControlStyles.ResizeRedraw, true);
+            this.Cursor = Cursors.Hand;
+            this.Font = new Font("Segoe UI", 9f);
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            isHovered = true;
+            this.Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            isHovered = false;
+            this.Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            Color parentBg = MainForm.GetRealParentBackColor(this, ThemeHelper.CardBackground);
+            g.Clear(parentBg);
+
+            bool isDark = ThemeHelper.IsDarkTheme();
+            int boxSize = 18;
+            int boxY = (this.Height - boxSize) / 2;
+            Rectangle boxRect = new Rectangle(0, boxY, boxSize, boxSize);
+
+            if (this.Checked)
+            {
+                // Акцентный закругленный фон чекбокса в стиле Windows 11 Fluent
+                Color fillCol = isHovered ? ThemeHelper.AccentHover : ThemeHelper.Accent;
+                using (var path = MainForm.CreateRoundedPath(boxRect, 4))
+                using (var b = new SolidBrush(fillCol))
+                {
+                    g.FillPath(b, path);
+                }
+
+                // Белая галочка
+                using (var p = new Pen(Color.White, 1.8f))
+                {
+                    p.StartCap = LineCap.Round;
+                    p.EndCap = LineCap.Round;
+                    p.LineJoin = LineJoin.Round;
+                    Point[] checkMark = new Point[] {
+                        new Point(boxRect.Left + 4, boxRect.Top + 9),
+                        new Point(boxRect.Left + 7, boxRect.Top + 13),
+                        new Point(boxRect.Left + 13, boxRect.Top + 5)
+                    };
+                    g.DrawLines(p, checkMark);
+                }
+            }
+            else
+            {
+                // Незаполненный чекбокс со скругленной рамкой
+                Color bg = isHovered 
+                    ? (isDark ? Color.FromArgb(50, 50, 50) : Color.FromArgb(240, 240, 240))
+                    : (isDark ? Color.FromArgb(36, 36, 36) : Color.FromArgb(250, 250, 250));
+                Color border = isHovered 
+                    ? ThemeHelper.Accent 
+                    : (isDark ? Color.FromArgb(120, 120, 120) : Color.FromArgb(160, 160, 160));
+
+                using (var path = MainForm.CreateRoundedPath(boxRect, 4))
+                {
+                    using (var b = new SolidBrush(bg))
+                    {
+                        g.FillPath(b, path);
+                    }
+                    using (var p = new Pen(border, 1.2f))
+                    {
+                        g.DrawPath(p, path);
+                    }
+                }
+            }
+
+            // Текст чекбокса
+            Rectangle textRect = new Rectangle(boxSize + 8, 0, Math.Max(10, this.Width - boxSize - 8), this.Height);
+            Color textCol = this.Enabled 
+                ? (isDark ? ThemeHelper.TextPrimary : Color.FromArgb(25, 25, 25))
+                : ThemeHelper.TextSecondary;
+            TextRenderer.DrawText(g, this.Text, this.Font, textRect, textCol,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+        }
+    }
+
+
     public class MainForm : Form
     {
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
@@ -636,7 +736,6 @@ namespace PasteImageAsFile
         private FluentButton btnOpenCache;
         private FluentButton btnCheckUpdate;
         private FluentButton btnHideToTray;
-        private FluentButton btnCheckUpdateTab;
 
         private System.Windows.Forms.Timer statusTimer;
         private ToolTip toolTip;
@@ -714,36 +813,23 @@ namespace PasteImageAsFile
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                // Векторная плашка логотипа 36x36 слева
+                // Иконка приложения 36x36 слева
                 Rectangle iconRect = new Rectangle(18, 14, 36, 36);
-                using (var iconBgBrush = new SolidBrush(ThemeHelper.IsDarkTheme() ? Color.FromArgb(18, 38, 58) : Color.FromArgb(220, 235, 252)))
-                using (var iconPath = CreateRoundedPath(iconRect, 8))
+                if (this.Icon != null)
                 {
-                    g.FillPath(iconBgBrush, iconPath);
-                    using (var p = new Pen(ThemeHelper.Accent, 1.2f))
+                    try
                     {
-                        g.DrawPath(p, iconPath);
+                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.DrawIcon(this.Icon, iconRect);
                     }
-                }
-
-                // Иконка картинки внутри плашки
-                int fx = iconRect.X + 8;
-                int fy = iconRect.Y + 8;
-                using (var p = new Pen(ThemeHelper.Accent, 1.6f))
-                {
-                    g.DrawRectangle(p, fx, fy, 19, 19);
-                    using (var dotBrush = new SolidBrush(ThemeHelper.Accent))
+                    catch
                     {
-                        g.FillEllipse(dotBrush, fx + 4, fy + 4, 3, 3);
+                        using (var iconBgBrush = new SolidBrush(ThemeHelper.IsDarkTheme() ? Color.FromArgb(18, 38, 58) : Color.FromArgb(220, 235, 252)))
+                        using (var iconPath = CreateRoundedPath(iconRect, 8))
+                        {
+                            g.FillPath(iconBgBrush, iconPath);
+                        }
                     }
-                    Point[] pts = new Point[] {
-                        new Point(fx + 2, fy + 15),
-                        new Point(fx + 7, fy + 10),
-                        new Point(fx + 11, fy + 13),
-                        new Point(fx + 15, fy + 7),
-                        new Point(fx + 17, fy + 15)
-                    };
-                    g.DrawLines(p, pts);
                 }
 
                 // Тонкая разделительная черта снизу шапки
@@ -1235,21 +1321,6 @@ namespace PasteImageAsFile
             toolTip.SetToolTip(txtPrefix.InnerTextBox, "Базовое имя файла, если оригинальное имя не удалось распознать (например, Снимок)");
             pnlPageGeneral.Controls.Add(lblPrefix);
             pnlPageGeneral.Controls.Add(txtPrefix);
-
-            top += 34;
-            Label lblUpdates = new Label
-            {
-                Text = "Обновления с GitHub:",
-                Font = new Font("Segoe UI Semibold", 9f),
-                Location = new Point(14, top + 6),
-                AutoSize = true
-            };
-            btnCheckUpdateTab = CreateButton("Проверить обновление", 220, top, 230, 32);
-            btnCheckUpdateTab.Click += delegate { CheckForUpdatesUI(); };
-            toolTip.SetToolTip(btnCheckUpdateTab, "Проверить наличие новой версии на GitHub и обновить утилиту");
-
-            pnlPageGeneral.Controls.Add(lblUpdates);
-            pnlPageGeneral.Controls.Add(btnCheckUpdateTab);
         }
 
         private void BuildClipboardPage()
@@ -2041,7 +2112,6 @@ namespace PasteImageAsFile
             if (btnUninstall != null) btnUninstall.Invalidate();
             if (btnOpenCache != null) btnOpenCache.Invalidate();
             if (btnCheckUpdate != null) btnCheckUpdate.Invalidate();
-            if (btnCheckUpdateTab != null) btnCheckUpdateTab.Invalidate();
             if (btnHideToTray != null) btnHideToTray.Invalidate();
             if (btnTestSuperHub != null) btnTestSuperHub.Invalidate();
 
@@ -2101,13 +2171,13 @@ namespace PasteImageAsFile
             return btn;
         }
 
-        private CheckBox CreateCheckBox(string text, int x, int y)
+        private FluentCheckBox CreateCheckBox(string text, int x, int y)
         {
-            CheckBox chk = new CheckBox
+            FluentCheckBox chk = new FluentCheckBox
             {
                 Text = text,
                 Location = new Point(x, y),
-                AutoSize = true,
+                Size = new Size(450, 22),
                 ForeColor = ThemeHelper.TextPrimary,
                 Font = new Font("Segoe UI", 9f),
                 Cursor = Cursors.Hand
@@ -2400,22 +2470,12 @@ namespace PasteImageAsFile
                 btnCheckUpdate.Enabled = false;
                 btnCheckUpdate.Text = "Проверка...";
             }
-            if (btnCheckUpdateTab != null)
-            {
-                btnCheckUpdateTab.Enabled = false;
-                btnCheckUpdateTab.Text = "Проверка...";
-            }
 
             UpdateHelper.CheckForUpdatesAsync(delegate(UpdateReleaseInfo info) {
                 if (btnCheckUpdate != null && !btnCheckUpdate.IsDisposed)
                 {
                     btnCheckUpdate.Enabled = true;
                     btnCheckUpdate.Text = "Проверить обновление";
-                }
-                if (btnCheckUpdateTab != null && !btnCheckUpdateTab.IsDisposed)
-                {
-                    btnCheckUpdateTab.Enabled = true;
-                    btnCheckUpdateTab.Text = "Проверить обновление";
                 }
 
                 if (!this.IsDisposed && this.IsHandleCreated)

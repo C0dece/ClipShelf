@@ -662,6 +662,12 @@ namespace PasteImageAsFile
                 Logger.Log("Error showing SuperHubDockForm: " + ex.Message);
             }
 
+            mainForm = new MainForm();
+            IntPtr dummy = mainForm.Handle;
+            mainForm.WindowState = FormWindowState.Minimized;
+            mainForm.ShowInTaskbar = false;
+            mainForm.Hide();
+
             Logger.Log("Entering Application.Run() for daemon");
             Application.Run();
             Logger.Log("Exited Application.Run() for daemon");
