@@ -93,7 +93,7 @@ namespace PasteImageAsFile
 
             lblHeaderTitle = new Label
             {
-                Text = "Обновление PasteImageAsFile",
+                Text = "Обновление ClipShelf",
                 Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
                 ForeColor = textCol,
                 AutoSize = true,

@@ -10,7 +10,7 @@ namespace PasteImageAsFile
 {
     public static class Program
     {
-        const string MutexName = "PasteImageAsFile_SingleInstance_Mutex_App_v1";
+        const string MutexName = "ClipShelf_SingleInstance_Mutex_App_v1";
         static Mutex singleInstanceMutex;
 
         private static ClipboardListenerWindow watcherWindow;

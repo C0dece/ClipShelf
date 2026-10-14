@@ -5,7 +5,8 @@ namespace PasteImageAsFile
 {
     public static class Config
     {
-        const string RegKeyPath = @"Software\PasteImageAsFile";
+        const string RegKeyPath = @"Software\ClipShelf";
+        const string LegacyRegKeyPath = @"Software\PasteImageAsFile";
 
         public static bool AutoRun
         {
@@ -317,6 +318,14 @@ namespace PasteImageAsFile
                         if (val is int) return (int)val;
                     }
                 }
+                using (var legacyKey = Registry.CurrentUser.OpenSubKey(LegacyRegKeyPath, false))
+                {
+                    if (legacyKey != null)
+                    {
+                        object val = legacyKey.GetValue(name);
+                        if (val is int) return (int)val;
+                    }
+                }
             }
             catch {}
             return defaultValue;
@@ -343,6 +352,14 @@ namespace PasteImageAsFile
                     if (key != null)
                     {
                         object val = key.GetValue(name);
+                        if (val != null) return val.ToString();
+                    }
+                }
+                using (var legacyKey = Registry.CurrentUser.OpenSubKey(LegacyRegKeyPath, false))
+                {
+                    if (legacyKey != null)
+                    {
+                        object val = legacyKey.GetValue(name);
                         if (val != null) return val.ToString();
                     }
                 }

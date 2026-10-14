@@ -675,7 +675,7 @@ namespace PasteImageAsFile
         {
             this.SuspendLayout();
 
-            this.Text = "PasteImageAsFile - Настройки";
+            this.Text = "ClipShelf - Настройки";
             this.Size = new Size(514, 720);
             this.MinimumSize = new Size(514, 720);
             this.MaximumSize = new Size(514, 720);
@@ -755,7 +755,7 @@ namespace PasteImageAsFile
 
             lblAppTitle = new Label
             {
-                Text = "PasteImageAsFile",
+                Text = "ClipShelf",
                 Font = new Font("Segoe UI Semibold", 13f, FontStyle.Bold),
                 ForeColor = ThemeHelper.TextPrimary,
                 AutoSize = true,
@@ -2350,7 +2350,7 @@ namespace PasteImageAsFile
             {
                 MessageBox.Show(
                     "Утилита уже интегрирована в систему.\n\nДля переустановки или сброса сначала нажмите 'Удалить'.",
-                    "PasteImageAsFile",
+                    "ClipShelf",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );
@@ -2360,10 +2360,10 @@ namespace PasteImageAsFile
             ShellIntegration.Install(chkAutoRun.Checked, chkContextMenu.Checked);
             Program.StartWatcher();
             MessageBox.Show(
-                "Утилита успешно установлена в систему!\n\n" +
+                "ClipShelf успешно установлен в систему!\n\n" +
                 "1. Если в буфере изображение: нажимайте Ctrl+V в Проводнике или на Рабочем столе.\n" +
                 "2. Буфер обмена (Win+V) и полка SuperHub доступны из трея и по жестам мыши.",
-                "PasteImageAsFile",
+                "ClipShelf",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
             );
@@ -2373,7 +2373,7 @@ namespace PasteImageAsFile
         private void BtnUninstall_Click(object sender, EventArgs e)
         {
             var res = MessageBox.Show(
-                "Удалить интеграцию PasteImageAsFile из Проводника и автозапуска?",
+                "Удалить интеграцию ClipShelf из Проводника и автозапуска?",
                 "Удаление",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question
@@ -2386,7 +2386,7 @@ namespace PasteImageAsFile
                 UpdateStatus();
                 MessageBox.Show(
                     "Интеграция удалена из системы.",
-                    "PasteImageAsFile",
+                    "ClipShelf",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );

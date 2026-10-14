@@ -5,6 +5,7 @@ obj/
 *.user
 *.suo
 *.exe
+!dist/ClipShelf.exe
 !dist/PasteImageAsFile.exe
 !dist/app.ico
 scratch/

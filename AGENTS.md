@@ -1,17 +1,17 @@
-# AGENTS.md - Справка для инженеров и агентов проекта PasteImageAsFile
+# AGENTS.md - Справка для инженеров и агентов проекта ClipShelf
 
 ## 1. Назначение и стек
-- **Назначение**: Утилита Windows для моментальной вставки скопированных изображений как файлов через Ctrl+V, продвинутого буфера обмена в стиле Windows 11 и плавающей полки файлов SuperHub.
+- **Назначение**: Утилита Windows для продвинутого буфера обмена в стиле Windows 11 Fluent, плавающей полки файлов SuperHub и моментальной вставки изображений и текста как файлов через Ctrl+V.
 - **Стек**: C# (.NET Framework 4.0 / 4.5, C# 5 синтаксис), WinForms, Win32 API / PInvoke (DWM, Shell, User32).
 - **Сборка**: Без внешних nuget пакетов, встроенным компилятором `csc.exe`.
 
 ## 2. Ключевые команды
-- **Сборка**: `cmd.exe /c build.bat` (компилирует `src\*.cs` в `dist\PasteImageAsFile.exe`).
-- **Запуск демона**: `dist\PasteImageAsFile.exe --daemon`
-- **Открыть настройки**: `dist\PasteImageAsFile.exe`
-- **Вызов буфера обмена**: `dist\PasteImageAsFile.exe --history`
-- **Генерация скриншотов UI**: `dist\PasteImageAsFile.exe --screenshot [папка]`
-- **Установка в систему**: `dist\PasteImageAsFile.exe --install`
+- **Сборка**: `cmd.exe /c build.bat` (компилирует `src\*.cs` в `dist\ClipShelf.exe` и `dist\PasteImageAsFile.exe`).
+- **Запуск демона**: `dist\ClipShelf.exe --daemon`
+- **Открыть настройки**: `dist\ClipShelf.exe`
+- **Вызов буфера обмена**: `dist\ClipShelf.exe --history`
+- **Генерация скриншотов UI**: `dist\ClipShelf.exe --screenshot [папка]`
+- **Установка в систему**: `dist\ClipShelf.exe --install`
 
 ## 3. Архитектура модулей
 - `src/Program.cs`: Точка входа, IPC, трей-меню, поиск активных пользовательских окон и маршрутизация команд.

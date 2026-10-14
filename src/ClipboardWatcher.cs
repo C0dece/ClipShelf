@@ -83,22 +83,30 @@ namespace PasteImageAsFile
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         static extern uint RegisterWindowMessage(string lpString);
 
-        public const string FLYOUT_MSG_NAME = "PasteImageAsFile_ShowFlyout_Message_v1";
+        public const string FLYOUT_MSG_NAME = "ClipShelf_ShowFlyout_Message_v1";
         public static readonly uint WM_SHOW_FLYOUT_MSG = RegisterWindowMessage(FLYOUT_MSG_NAME);
+        public static readonly uint WM_SHOW_FLYOUT_MSG_LEGACY = RegisterWindowMessage("PasteImageAsFile_ShowFlyout_Message_v1");
 
-        public const string SUPERHUB_MSG_NAME = "PasteImageAsFile_ShowSuperHub_Message_v1";
+        public const string SUPERHUB_MSG_NAME = "ClipShelf_ShowSuperHub_Message_v1";
         public static readonly uint WM_SHOW_SUPERHUB_MSG = RegisterWindowMessage(SUPERHUB_MSG_NAME);
+        public static readonly uint WM_SHOW_SUPERHUB_MSG_LEGACY = RegisterWindowMessage("PasteImageAsFile_ShowSuperHub_Message_v1");
 
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
-        public const string FlyoutEventName = "PasteImageAsFile_ShowFlyout_Event_v1";
+        public const string FlyoutEventName = "ClipShelf_ShowFlyout_Event_v1";
+        public const string FlyoutEventNameLegacy = "PasteImageAsFile_ShowFlyout_Event_v1";
         private EventWaitHandle flyoutEvent;
+        private EventWaitHandle flyoutEventLegacy;
         private RegisteredWaitHandle registeredWait;
+        private RegisteredWaitHandle registeredWaitLegacy;
 
-        public const string SuperHubEventName = "PasteImageAsFile_ShowSuperHub_Event_v1";
+        public const string SuperHubEventName = "ClipShelf_ShowSuperHub_Event_v1";
+        public const string SuperHubEventNameLegacy = "PasteImageAsFile_ShowSuperHub_Event_v1";
         private EventWaitHandle superHubEvent;
+        private EventWaitHandle superHubEventLegacy;
         private RegisteredWaitHandle registeredSuperHubWait;
+        private RegisteredWaitHandle registeredSuperHubWaitLegacy;
 
         public string CacheDirectory { get; private set; }
         private string lastAugmentedFile = null;
@@ -116,11 +124,11 @@ namespace PasteImageAsFile
             CleanOldCache();
 
             CreateParams cp = new CreateParams();
-            cp.Caption = "PasteImageAsFileListenerWindow";
+            cp.Caption = "ClipShelfListenerWindow";
             cp.Style = 0;
             cp.Parent = IntPtr.Zero;
             this.CreateHandle(cp);
-            SetWindowText(this.Handle, "PasteImageAsFileListenerWindow");
+            SetWindowText(this.Handle, "ClipShelfListenerWindow");
             bool ok = AddClipboardFormatListener(this.Handle);
             Logger.Log("ClipboardListenerWindow handle created: " + this.Handle + ", listener added: " + ok);
 
@@ -134,7 +142,19 @@ namespace PasteImageAsFile
                         PostMessage(this.Handle, unchecked((uint)WM_SHOW_FLYOUT), IntPtr.Zero, IntPtr.Zero);
                     }
                 }, null, -1, false);
-                Logger.Log("Registered wait for " + FlyoutEventName);
+
+                try
+                {
+                    bool cnl;
+                    flyoutEventLegacy = new EventWaitHandle(false, EventResetMode.AutoReset, FlyoutEventNameLegacy, out cnl);
+                    registeredWaitLegacy = ThreadPool.RegisterWaitForSingleObject(flyoutEventLegacy, (state, timedOut) => {
+                        if (!timedOut)
+                        {
+                            PostMessage(this.Handle, unchecked((uint)WM_SHOW_FLYOUT), IntPtr.Zero, IntPtr.Zero);
+                        }
+                    }, null, -1, false);
+                }
+                catch {}
 
                 bool createdSuperHub;
                 superHubEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SuperHubEventName, out createdSuperHub);
@@ -144,7 +164,19 @@ namespace PasteImageAsFile
                         PostMessage(this.Handle, unchecked((uint)WM_SHOW_SUPERHUB), IntPtr.Zero, IntPtr.Zero);
                     }
                 }, null, -1, false);
-                Logger.Log("Registered wait for " + SuperHubEventName);
+
+                try
+                {
+                    bool cshl;
+                    superHubEventLegacy = new EventWaitHandle(false, EventResetMode.AutoReset, SuperHubEventNameLegacy, out cshl);
+                    registeredSuperHubWaitLegacy = ThreadPool.RegisterWaitForSingleObject(superHubEventLegacy, (state, timedOut) => {
+                        if (!timedOut)
+                        {
+                            PostMessage(this.Handle, unchecked((uint)WM_SHOW_SUPERHUB), IntPtr.Zero, IntPtr.Zero);
+                        }
+                    }, null, -1, false);
+                }
+                catch {}
             }
             catch (Exception ex)
             {
@@ -396,7 +428,7 @@ namespace PasteImageAsFile
                 }
             }
 
-            if (m.Msg == (int)WM_SHOW_FLYOUT_MSG || m.Msg == WM_SHOW_FLYOUT)
+            if (m.Msg == (int)WM_SHOW_FLYOUT_MSG || m.Msg == (int)WM_SHOW_FLYOUT_MSG_LEGACY || m.Msg == WM_SHOW_FLYOUT)
             {
                 Logger.Log("WM_SHOW_FLYOUT message received");
                 try
@@ -420,7 +452,7 @@ namespace PasteImageAsFile
                 return;
             }
 
-            if (m.Msg == (int)WM_SHOW_SUPERHUB_MSG || m.Msg == WM_SHOW_SUPERHUB)
+            if (m.Msg == (int)WM_SHOW_SUPERHUB_MSG || m.Msg == (int)WM_SHOW_SUPERHUB_MSG_LEGACY || m.Msg == WM_SHOW_SUPERHUB)
             {
                 Logger.Log("WM_SHOW_SUPERHUB message received");
                 try

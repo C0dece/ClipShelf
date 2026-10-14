@@ -127,8 +127,9 @@ namespace PasteImageAsFile
             string html = ExtractJsonString(json, "html_url");
             if (!string.IsNullOrEmpty(html)) result.HtmlUrl = html;
 
-            // Ищем asset PasteImageAsFile.exe
-            int exeIdx = json.IndexOf("PasteImageAsFile.exe", StringComparison.OrdinalIgnoreCase);
+            // Ищем asset ClipShelf.exe или PasteImageAsFile.exe
+            int exeIdx = json.IndexOf("ClipShelf.exe", StringComparison.OrdinalIgnoreCase);
+            if (exeIdx < 0) exeIdx = json.IndexOf("PasteImageAsFile.exe", StringComparison.OrdinalIgnoreCase);
             if (exeIdx >= 0)
             {
                 string searchPart = json.Substring(exeIdx);
@@ -145,7 +146,7 @@ namespace PasteImageAsFile
 
             if (string.IsNullOrEmpty(result.DownloadUrl) && !string.IsNullOrEmpty(result.LatestTag))
             {
-                result.DownloadUrl = "https://github.com/" + RepoOwner + "/" + RepoName + "/releases/download/" + result.LatestTag + "/PasteImageAsFile.exe";
+                result.DownloadUrl = "https://github.com/" + RepoOwner + "/" + RepoName + "/releases/download/" + result.LatestTag + "/ClipShelf.exe";
             }
         }
 
@@ -154,7 +155,7 @@ namespace PasteImageAsFile
             try
             {
                 HttpWebRequest req = (HttpWebRequest)WebRequest.Create(GitHubLatestReleasePageUrl);
-                req.UserAgent = "PasteImageAsFile/" + ShellIntegration.AppVersion;
+                req.UserAgent = "ClipShelf/" + ShellIntegration.AppVersion;
                 req.AllowAutoRedirect = false;
                 req.Timeout = 7000;
 
@@ -170,7 +171,7 @@ namespace PasteImageAsFile
                             result.LatestTag = loc.Substring(tagIdx + 1);
                             result.LatestVersion = CleanVersionString(result.LatestTag);
                             result.ReleaseTitle = "Версия " + result.LatestTag;
-                            result.DownloadUrl = "https://github.com/" + RepoOwner + "/" + RepoName + "/releases/download/" + result.LatestTag + "/PasteImageAsFile.exe";
+                            result.DownloadUrl = "https://github.com/" + RepoOwner + "/" + RepoName + "/releases/download/" + result.LatestTag + "/ClipShelf.exe";
                         }
                     }
                 }
@@ -280,9 +281,9 @@ namespace PasteImageAsFile
                 string tempExe = null;
                 try
                 {
-                    string tempDir = Path.Combine(Path.GetTempPath(), "PasteImageAsFile_Update");
+                    string tempDir = Path.Combine(Path.GetTempPath(), "ClipShelf_Update");
                     Directory.CreateDirectory(tempDir);
-                    tempExe = Path.Combine(tempDir, "PasteImageAsFile_new.exe");
+                    tempExe = Path.Combine(tempDir, "ClipShelf_new.exe");
 
                     if (File.Exists(tempExe))
                     {
@@ -291,7 +292,7 @@ namespace PasteImageAsFile
 
                     using (WebClient client = new WebClient())
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] = "PasteImageAsFile-Updater";
+                        client.Headers[HttpRequestHeader.UserAgent] = "ClipShelf-Updater";
                         client.DownloadProgressChanged += delegate(object s, DownloadProgressChangedEventArgs e) {
                             if (onProgress != null)
                             {

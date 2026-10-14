@@ -91,7 +91,7 @@ namespace PasteImageAsFile
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Segoe UI", 9f);
             this.ShowIcon = false;
-            this.Text = "Просмотр - PasteImageAsFile";
+            this.Text = "Просмотр - ClipShelf";
 
             toolTip = ThemeHelper.CreateFluentToolTip();
             toolTip.ShowAlways = true;
@@ -302,7 +302,7 @@ namespace PasteImageAsFile
                 btnPin.ForeColor = ThemeHelper.Accent;
                 btnPin.Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold);
                 toolTip.SetToolTip(btnPin, "Окно закреплено поверх всех (кликните для открепления)");
-                this.Text = "[Закреплено] " + GetDisplayTitle() + " - PasteImageAsFile";
+                this.Text = "[Закреплено] " + GetDisplayTitle() + " - ClipShelf";
                 if (lblTitle != null) lblTitle.Text = GetDisplayTitle();
             }
             else
@@ -313,7 +313,7 @@ namespace PasteImageAsFile
                 btnPin.ForeColor = ThemeHelper.TextSecondary;
                 btnPin.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
                 toolTip.SetToolTip(btnPin, "Закрепить окно поверх остальных");
-                this.Text = GetDisplayTitle() + " - PasteImageAsFile";
+                this.Text = GetDisplayTitle() + " - ClipShelf";
                 if (lblTitle != null) lblTitle.Text = GetDisplayTitle();
             }
             RelayoutHeaderButtons();
@@ -996,7 +996,7 @@ namespace PasteImageAsFile
             {
                 if (item != null && item.Type == ClipboardItemType.Text)
                 {
-                    string tempDir = Path.Combine(Path.GetTempPath(), "PasteImageAsFile");
+                    string tempDir = Path.Combine(Path.GetTempPath(), "ClipShelf");
                     if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
                     string tempFile = Path.Combine(tempDir, string.Format("Заметка_{0:yyyyMMdd_HHmmss}.txt", DateTime.Now));
                     File.WriteAllText(tempFile, item.TextContent ?? "", Encoding.UTF8);
