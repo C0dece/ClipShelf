@@ -788,26 +788,12 @@ namespace PasteImageAsFile
             // Иконка приложения
             try
             {
+                this.Icon = Program.GetAppIcon(0);
+
                 string appDir = Path.GetDirectoryName(typeof(MainForm).Assembly.Location);
                 if (string.IsNullOrEmpty(appDir) || !Directory.Exists(appDir))
                 {
                     appDir = Path.GetDirectoryName(Application.ExecutablePath);
-                }
-
-                string icoPath = Path.Combine(appDir, "app.ico");
-                if (!File.Exists(icoPath))
-                {
-                    string assetsIco = Path.Combine(appDir, @"..\assets\app.ico");
-                    if (File.Exists(assetsIco)) icoPath = assetsIco;
-                }
-
-                if (File.Exists(icoPath))
-                {
-                    this.Icon = new Icon(icoPath);
-                }
-                else
-                {
-                    this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
                 }
 
                 string pngPath = Path.Combine(appDir, "app_icon.png");
@@ -827,7 +813,10 @@ namespace PasteImageAsFile
                 }
                 else if (this.Icon != null)
                 {
-                    headerIconBmp = this.Icon.ToBitmap();
+                    using (var ico48 = Program.GetAppIcon(48))
+                    {
+                        headerIconBmp = ico48.ToBitmap();
+                    }
                 }
             }
             catch {}

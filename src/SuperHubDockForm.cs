@@ -258,6 +258,7 @@ namespace PasteImageAsFile
             this.TopMost = true;
             this.AllowDrop = true;
             this.DoubleBuffered = true;
+            this.Icon = Program.GetAppIcon(32);
             this.MinimumSize = new Size(1, 1);
             this.BackColor = ThemeHelper.Accent;
             this.Cursor = Cursors.Hand;

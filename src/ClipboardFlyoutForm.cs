@@ -449,6 +449,7 @@ namespace PasteImageAsFile
             this.MinimumSize = new Size(310, 420);
             this.DoubleBuffered = true;
             this.TopMost = true;
+            this.Icon = Program.GetAppIcon(32);
             this.KeyPreview = true;
             this.AllowDrop = true;
             this.Opacity = 0.96;

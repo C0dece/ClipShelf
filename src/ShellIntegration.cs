@@ -107,11 +107,19 @@ namespace PasteImageAsFile
                 File.Copy(currentExe, InstalledExePath, true);
             }
 
-            string currentIco = Path.Combine(Path.GetDirectoryName(currentExe), "app.ico");
+            string currentDir = Path.GetDirectoryName(currentExe);
+            string currentIco = Path.Combine(currentDir, "app.ico");
             string installedIco = Path.Combine(InstallDir, "app.ico");
             if (File.Exists(currentIco) && !string.Equals(currentIco, installedIco, StringComparison.OrdinalIgnoreCase))
             {
                 try { File.Copy(currentIco, installedIco, true); } catch {}
+            }
+
+            string currentPng = Path.Combine(currentDir, "app_icon.png");
+            string installedPng = Path.Combine(InstallDir, "app_icon.png");
+            if (File.Exists(currentPng) && !string.Equals(currentPng, installedPng, StringComparison.OrdinalIgnoreCase))
+            {
+                try { File.Copy(currentPng, installedPng, true); } catch {}
             }
 
             SetContextMenu(contextMenu);
@@ -167,7 +175,8 @@ namespace PasteImageAsFile
 
             string exePath = File.Exists(InstalledExePath) ? InstalledExePath : Application.ExecutablePath;
             string quotedExe = "\"" + exePath + "\"";
-            string iconRef = "\"" + exePath + "\",0";
+            string iconPath = Path.Combine(Path.GetDirectoryName(exePath), "app.ico");
+            string iconRef = File.Exists(iconPath) ? ("\"" + iconPath + "\",0") : ("\"" + exePath + "\",0");
 
             foreach (var loc in MenuLocations)
             {
@@ -213,7 +222,8 @@ namespace PasteImageAsFile
                 {
                     string exePath = File.Exists(InstalledExePath) ? InstalledExePath : Application.ExecutablePath;
                     string quotedExe = "\"" + exePath + "\"";
-                    string iconRef = "\"" + exePath + "\",0";
+                    string iconPath = Path.Combine(Path.GetDirectoryName(exePath), "app.ico");
+                    string iconRef = File.Exists(iconPath) ? ("\"" + iconPath + "\",0") : ("\"" + exePath + "\",0");
 
                     using (var key = Registry.CurrentUser.CreateSubKey(keyPath))
                     {

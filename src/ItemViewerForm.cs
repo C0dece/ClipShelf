@@ -90,7 +90,8 @@ namespace PasteImageAsFile
             this.MinimumSize = new Size(400, 300);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Segoe UI", 9f);
-            this.ShowIcon = false;
+            this.Icon = Program.GetAppIcon(32);
+            this.ShowIcon = true;
             this.Text = "Просмотр - ClipShelf";
 
             toolTip = ThemeHelper.CreateFluentToolTip();

@@ -46,6 +46,7 @@ namespace PasteImageAsFile
             this.BackColor = ThemeHelper.Background;
             this.ShowInTaskbar = false;
             this.TopMost = true;
+            this.Icon = Program.GetAppIcon(32);
 
             ApplyWindowStyles();
             InitializeUI(title, prompt, initialValue);

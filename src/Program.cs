@@ -735,6 +735,40 @@ namespace PasteImageAsFile
             }
         }
 
+        public static Icon GetAppIcon(int targetSize = 0)
+        {
+            try
+            {
+                string appDir = Path.GetDirectoryName(typeof(Program).Assembly.Location);
+                if (string.IsNullOrEmpty(appDir) || !Directory.Exists(appDir))
+                {
+                    appDir = Path.GetDirectoryName(Application.ExecutablePath);
+                }
+
+                string icoPath = Path.Combine(appDir, "app.ico");
+                if (!File.Exists(icoPath))
+                {
+                    string assetsIco = Path.Combine(appDir, @"..\assets\app.ico");
+                    if (File.Exists(assetsIco)) icoPath = assetsIco;
+                }
+
+                if (File.Exists(icoPath))
+                {
+                    if (targetSize > 0)
+                    {
+                        return new Icon(icoPath, targetSize, targetSize);
+                    }
+                    return new Icon(icoPath);
+                }
+
+                return Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            }
+            catch
+            {
+                return SystemIcons.Application;
+            }
+        }
+
         private static void InitTray()
         {
             if (trayIcon != null) return;
@@ -763,21 +797,9 @@ namespace PasteImageAsFile
                 new MenuItem("Выход", (s, e) => ExitApp())
             });
 
-            Icon appIcon = null;
-            try
-            {
-                string icoPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "app.ico");
-                if (File.Exists(icoPath))
-                {
-                    appIcon = new Icon(icoPath);
-                }
-                else
-                {
-                    appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-                }
-            }
-            catch {}
-            if (appIcon == null) appIcon = SystemIcons.Application;
+            int smallSize = SystemInformation.SmallIconSize.Width;
+            if (smallSize <= 0) smallSize = 16;
+            Icon appIcon = GetAppIcon(smallSize);
 
             trayIcon = new NotifyIcon
             {
