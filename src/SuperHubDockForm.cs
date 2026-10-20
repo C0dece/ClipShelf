@@ -271,16 +271,12 @@ namespace PasteImageAsFile
 
             this.MouseEnter += (s, e) => {
                 isMouseHovering = true;
-                this.Invalidate();
+                HandleMarkerHover(Cursor.Position);
             };
             this.MouseMove += (s, e) => {
+                isMouseHovering = true;
                 Point screenPt = this.PointToScreen(e.Location);
-                int newHalf = GetHalfForScreenPoint(screenPt);
-                if (newHalf != hoveredHalf)
-                {
-                    hoveredHalf = newHalf;
-                    this.Invalidate();
-                }
+                HandleMarkerHover(screenPt);
             };
             this.MouseLeave += (s, e) => {
                 isMouseHovering = false;
@@ -340,7 +336,31 @@ namespace PasteImageAsFile
         private int GetHalfForScreenPoint(Point screenPt)
         {
             if (!Config.SuperHubSplitMarker) return 2;
-            if (IsHorizontalPosition())
+            if (IsCornerPosition())
+            {
+                string pos = Config.GetScreenPosition(this.AttachedScreen != null ? this.AttachedScreen.DeviceName : null, Config.SuperHubPosition);
+                int relX = screenPt.X - this.Left;
+                int relY = screenPt.Y - this.Top;
+                int w = this.Width;
+                int h = this.Height;
+                if (string.Equals(pos, "CornerBottomRight", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (relX < relY) ? 1 : 2;
+                }
+                else if (string.Equals(pos, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (relX + relY < w) ? 1 : 2;
+                }
+                else if (string.Equals(pos, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (relX + relY >= w) ? 1 : 2;
+                }
+                else // CornerTopLeft
+                {
+                    return (relX > relY) ? 1 : 2;
+                }
+            }
+            else if (IsHorizontalPosition())
             {
                 int midX = this.Left + this.Width / 2;
                 return (screenPt.X < midX) ? 1 : 2;
@@ -554,29 +574,56 @@ namespace PasteImageAsFile
 
             if (isOverUs)
             {
-                int half = GetHalfForScreenPoint(cur);
-                if (half != hoveredHalf)
+                isMouseHovering = true;
+                HandleMarkerHover(cur);
+            }
+            else
+            {
+                if (hoveredHalf != 0 || isMouseHovering)
                 {
-                    hoveredHalf = half;
+                    hoveredHalf = 0;
+                    isMouseHovering = false;
                     this.Invalidate();
                 }
+                hoverExpandCounter = 0;
+            }
+        }
 
-                hoverExpandCounter++;
-                if (hoverExpandCounter >= 1) // Мгновенный отклик при наведении прямо на маркер
+        private void HandleMarkerHover(Point screenPt)
+        {
+            if (this.IsDisposed || !Config.SuperHubEnabled) return;
+            if (ClipboardFlyoutForm.IsGlobalDraggingActive || ClipboardFlyoutForm.IsLeftMouseButtonDown()) return;
+
+            int half = GetHalfForScreenPoint(screenPt);
+            if (half != hoveredHalf)
+            {
+                hoveredHalf = half;
+                this.Invalidate();
+            }
+
+            bool openSh = ShouldOpenSuperHubAtScreenPoint(screenPt);
+            int targetTab = openSh ? 1 : 0;
+
+            if (ClipboardFlyoutForm.IsFlyoutOpen)
+            {
+                hoverExpandCounter = 0;
+                var flyout = ClipboardFlyoutForm.CurrentInstance;
+                if (flyout != null && !flyout.IsDisposed && flyout.Visible)
                 {
-                    hoverExpandCounter = 0;
-                    bool openSh = ShouldOpenSuperHubAtScreenPoint(cur);
-                    ExpandShelf(false, openSh);
+                    if (flyout.CurrentMainTab != targetTab)
+                    {
+                        flyout.SwitchMainTab(targetTab);
+                    }
                 }
             }
             else
             {
-                if (hoveredHalf != 0)
+                hoverExpandCounter++;
+                if (hoverExpandCounter >= 1) // Мгновенный отклик при наведении прямо на маркер
                 {
-                    hoveredHalf = 0;
-                    this.Invalidate();
+                    hoverExpandCounter = 0;
+                    ExpandShelf(false, openSh);
                 }
-                hoverExpandCounter = 0;
             }
         }
 
@@ -873,7 +920,41 @@ namespace PasteImageAsFile
             Color firstColor = (isMouseHovering && hoveredHalf == 1) ? ThemeHelper.AccentHover : ThemeHelper.Accent;
             Color secondColor = (isMouseHovering && hoveredHalf == 2) ? ThemeHelper.SuperHubSecondaryAccentHover : ThemeHelper.SuperHubSecondaryAccent;
 
-            if (IsHorizontalPosition())
+            if (IsCornerPosition())
+            {
+                string pos = Config.GetScreenPosition(this.AttachedScreen != null ? this.AttachedScreen.DeviceName : null, Config.SuperHubPosition);
+                int w = this.Width;
+                int h = this.Height;
+                using (var b1 = new SolidBrush(firstColor))
+                using (var b2 = new SolidBrush(secondColor))
+                {
+                    if (string.Equals(pos, "CornerBottomRight", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Центр в (w, h). Диагональ под 225°.
+                        e.Graphics.FillPie(b1, 0, 0, w * 2, h * 2, 180, 45);
+                        e.Graphics.FillPie(b2, 0, 0, w * 2, h * 2, 225, 45);
+                    }
+                    else if (string.Equals(pos, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Центр в (0, h). Диагональ под 315°.
+                        e.Graphics.FillPie(b1, -w, 0, w * 2, h * 2, 270, 45);
+                        e.Graphics.FillPie(b2, -w, 0, w * 2, h * 2, 315, 45);
+                    }
+                    else if (string.Equals(pos, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Центр в (w, 0). Диагональ под 135°.
+                        e.Graphics.FillPie(b1, 0, -h, w * 2, h * 2, 90, 45);
+                        e.Graphics.FillPie(b2, 0, -h, w * 2, h * 2, 135, 45);
+                    }
+                    else // CornerTopLeft
+                    {
+                        // Центр в (0, 0). Диагональ под 45°.
+                        e.Graphics.FillPie(b1, -w, -h, w * 2, h * 2, 0, 45);
+                        e.Graphics.FillPie(b2, -w, -h, w * 2, h * 2, 45, 45);
+                    }
+                }
+            }
+            else if (IsHorizontalPosition())
             {
                 int midX = this.Width / 2;
                 using (var b1 = new SolidBrush(firstColor))

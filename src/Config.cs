@@ -233,6 +233,12 @@ namespace PasteImageAsFile
             set { SetDword("SuperHubSensitivity", value); }
         }
 
+        public static int SuperHubAutoHideDelay
+        {
+            get { return Math.Max(0, Math.Min(5000, GetDword("SuperHubAutoHideDelay", 500))); }
+            set { SetDword("SuperHubAutoHideDelay", Math.Max(0, Math.Min(5000, value))); }
+        }
+
         public static string SuperHubViewMode
         {
             get { return GetString("SuperHubViewMode", "Tabs"); }
@@ -253,13 +259,13 @@ namespace PasteImageAsFile
 
         public static int SuperHubWidthHorizontal
         {
-            get { return Math.Max(380, Math.Min(1400, GetDword("SuperHubWidthHorizontal", 620))); }
-            set { SetDword("SuperHubWidthHorizontal", Math.Max(380, Math.Min(1400, value))); }
+            get { return Math.Max(380, Math.Min(1600, GetDword("SuperHubWidthHorizontal", 720))); }
+            set { SetDword("SuperHubWidthHorizontal", Math.Max(380, Math.Min(1600, value))); }
         }
 
         public static int SuperHubHeightHorizontal
         {
-            get { return Math.Max(160, Math.Min(600, GetDword("SuperHubHeightHorizontal", 220))); }
+            get { return Math.Max(160, Math.Min(600, GetDword("SuperHubHeightHorizontal", 230))); }
             set { SetDword("SuperHubHeightHorizontal", Math.Max(160, Math.Min(600, value))); }
         }
 

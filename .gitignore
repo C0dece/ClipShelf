@@ -9,3 +9,5 @@ obj/
 !dist/PasteImageAsFile.exe
 !dist/app.ico
 scratch/
+Screenshots/
+dist/Screenshots/

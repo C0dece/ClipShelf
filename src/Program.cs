@@ -469,7 +469,8 @@ namespace PasteImageAsFile
                         IntPtr userWnd = FindLastActiveUserWindow(scr);
                         if (userWnd != IntPtr.Zero) prevFg = userWnd;
                     }
-                    ClipboardFlyoutForm.ShowDockFlyout(scr, Config.SuperHubPosition, prevFg, true);
+                    string pos = Config.GetScreenPosition(scr.DeviceName, Config.SuperHubPosition);
+                    ClipboardFlyoutForm.ShowDockFlyout(scr, pos, prevFg, true);
                     return;
                 }
 
@@ -662,12 +663,6 @@ namespace PasteImageAsFile
                 Logger.Log("Error showing SuperHubDockForm: " + ex.Message);
             }
 
-            mainForm = new MainForm();
-            IntPtr dummy = mainForm.Handle;
-            mainForm.WindowState = FormWindowState.Minimized;
-            mainForm.ShowInTaskbar = false;
-            mainForm.Hide();
-
             Logger.Log("Entering Application.Run() for daemon");
             Application.Run();
             Logger.Log("Exited Application.Run() for daemon");
@@ -843,11 +838,16 @@ namespace PasteImageAsFile
             {
                 mainForm = new MainForm();
             }
+            if (mainForm.WindowState == FormWindowState.Minimized)
+            {
+                mainForm.WindowState = FormWindowState.Normal;
+            }
             mainForm.Show();
-            mainForm.WindowState = FormWindowState.Normal;
             mainForm.BringToFront();
             mainForm.Activate();
             mainForm.UpdateStatus();
+            mainForm.Invalidate(true);
+            mainForm.Update();
         }
 
         public static void ExitApp()

@@ -435,7 +435,8 @@ namespace PasteImageAsFile
                         IntPtr userWnd = Program.FindLastActiveUserWindow(scr);
                         if (userWnd != IntPtr.Zero) prevFg = userWnd;
                     }
-                    ClipboardFlyoutForm.ShowDockFlyout(scr, Config.SuperHubPosition, prevFg, true);
+                    string pos = Config.GetScreenPosition(scr.DeviceName, Config.SuperHubPosition);
+                    ClipboardFlyoutForm.ShowDockFlyout(scr, pos, prevFg, true);
                 }
                 catch (Exception ex)
                 {

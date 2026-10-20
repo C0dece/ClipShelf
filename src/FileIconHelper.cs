@@ -39,24 +39,26 @@ namespace PasteImageAsFile
         {
             if (string.IsNullOrEmpty(path)) return SystemIcons.Application.ToBitmap();
 
-            string key = path;
+            string ext = "";
+            try { ext = Path.GetExtension(path).ToLowerInvariant(); } catch {}
+
+            bool isUnc = path.StartsWith(@"\\") || path.StartsWith("//");
             bool isDir = false;
-            try
+
+            if (string.IsNullOrEmpty(ext))
             {
-                if (Directory.Exists(path))
+                if (path.EndsWith("\\") || path.EndsWith("/") || (!isUnc && SafeDirectoryCheck(path)))
                 {
-                    key = ":folder:";
                     isDir = true;
                 }
-                else
-                {
-                    key = Path.GetExtension(path).ToLowerInvariant();
-                    if (string.IsNullOrEmpty(key)) key = ":file:";
-                }
             }
-            catch
+
+            string key = isDir ? ":folder:" : (string.IsNullOrEmpty(ext) ? ":file:" : ext);
+
+            // Для уникальных локальных exe/ico файлов кэшируем по полному пути
+            if (!isDir && (ext == ".exe" || ext == ".ico") && !isUnc)
             {
-                key = ":file:";
+                key = path;
             }
 
             lock (cacheLock)
@@ -69,7 +71,7 @@ namespace PasteImageAsFile
                 }
             }
 
-            Image img = ExtractIcon(path, isDir);
+            Image img = ExtractIcon(path, ext, isDir, isUnc);
             if (img == null) img = SystemIcons.Application.ToBitmap();
 
             lock (cacheLock)
@@ -80,7 +82,17 @@ namespace PasteImageAsFile
             return img;
         }
 
-        private static Image ExtractIcon(string path, bool isDir)
+        private static bool SafeDirectoryCheck(string path)
+        {
+            try
+            {
+                if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0) return false;
+                return Directory.Exists(path);
+            }
+            catch { return false; }
+        }
+
+        private static Image ExtractIcon(string path, string ext, bool isDir, bool isUnc)
         {
             try
             {
@@ -88,31 +100,50 @@ namespace PasteImageAsFile
                 uint flags = SHGFI_ICON | SHGFI_SMALLICON;
                 uint attrs = isDir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
 
-                if (!File.Exists(path) && !Directory.Exists(path))
+                // Для сетевых путей или стандартных расширений (кроме локальных exe/ico)
+                // всегда используем виртуальные системные атрибуты без обращения к диску или сети!
+                bool useAttributesOnly = isUnc || isDir || (ext != ".exe" && ext != ".ico");
+
+                if (useAttributesOnly)
                 {
                     flags |= SHGFI_USEFILEATTRIBUTES;
-                }
-
-                IntPtr res = SHGetFileInfo(path, attrs, ref shinfo, (uint)Marshal.SizeOf(shinfo), flags);
-                if (res != IntPtr.Zero && shinfo.hIcon != IntPtr.Zero)
-                {
-                    using (Icon ico = Icon.FromHandle(shinfo.hIcon))
+                    string queryPath = isDir ? "dummy_folder" : (string.IsNullOrEmpty(ext) ? "dummy_file" : ext);
+                    IntPtr res = SHGetFileInfo(queryPath, attrs, ref shinfo, (uint)Marshal.SizeOf(shinfo), flags);
+                    if (res != IntPtr.Zero && shinfo.hIcon != IntPtr.Zero)
                     {
-                        Bitmap bmp = new Bitmap(ico.ToBitmap());
-                        DestroyIcon(shinfo.hIcon);
-                        return bmp;
+                        using (Icon ico = Icon.FromHandle(shinfo.hIcon))
+                        {
+                            Bitmap bmp = new Bitmap(ico.ToBitmap());
+                            DestroyIcon(shinfo.hIcon);
+                            return bmp;
+                        }
                     }
                 }
-            }
-            catch {}
-
-            try
-            {
-                if (File.Exists(path))
+                else
                 {
-                    using (Icon ico = Icon.ExtractAssociatedIcon(path))
+                    // Локальный exe/ico файл
+                    try
                     {
-                        if (ico != null) return new Bitmap(ico.ToBitmap());
+                        if (File.Exists(path))
+                        {
+                            using (Icon ico = Icon.ExtractAssociatedIcon(path))
+                            {
+                                if (ico != null) return new Bitmap(ico.ToBitmap());
+                            }
+                        }
+                    }
+                    catch {}
+
+                    flags |= SHGFI_USEFILEATTRIBUTES;
+                    IntPtr res = SHGetFileInfo(ext, attrs, ref shinfo, (uint)Marshal.SizeOf(shinfo), flags);
+                    if (res != IntPtr.Zero && shinfo.hIcon != IntPtr.Zero)
+                    {
+                        using (Icon ico = Icon.FromHandle(shinfo.hIcon))
+                        {
+                            Bitmap bmp = new Bitmap(ico.ToBitmap());
+                            DestroyIcon(shinfo.hIcon);
+                            return bmp;
+                        }
                     }
                 }
             }

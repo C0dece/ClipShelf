@@ -17,6 +17,9 @@ namespace PasteImageAsFile
         [DllImport("user32.dll")]
         static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
         [DllImport("user32.dll")]
         static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
@@ -97,7 +100,7 @@ namespace PasteImageAsFile
                     ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
                     return;
                 }
-                base.OnPaintBackground(e);
+                e.Graphics.Clear(ThemeHelper.Background);
             }
 
             protected override void WndProc(ref Message m)
@@ -135,7 +138,7 @@ namespace PasteImageAsFile
                     ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
                     return;
                 }
-                base.OnPaintBackground(e);
+                e.Graphics.Clear(ThemeHelper.Background);
             }
 
             protected override void WndProc(ref Message m)
@@ -170,7 +173,7 @@ namespace PasteImageAsFile
                     ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
                     return;
                 }
-                base.OnPaintBackground(e);
+                e.Graphics.Clear(ThemeHelper.Background);
             }
         }
 
@@ -190,7 +193,7 @@ namespace PasteImageAsFile
                     ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
                     return;
                 }
-                base.OnPaintBackground(e);
+                e.Graphics.Clear(ThemeHelper.Background);
             }
         }
 
@@ -207,23 +210,93 @@ namespace PasteImageAsFile
             protected override void OnPaintBackground(PaintEventArgs e)
             {
                 ClipboardFlyoutForm f = this.FindForm() as ClipboardFlyoutForm;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                if (f != null && f.IsCornerDockMode)
+                {
+                    // В угловом секторе форма имеет фон ThemeHelper.Background.
+                    // Очищаем область карточки фоном формы, гарантируя полное стирание мусора
+                    g.Clear(ThemeHelper.Background);
+
+                    Rectangle rCard = new Rectangle(0, 0, Math.Max(1, this.Width - 1), Math.Max(1, this.Height - 1));
+                    using (var path = CreateRoundedPath(rCard, 7))
+                    {
+                        Color cardBg = ThemeHelper.IsDarkTheme()
+                            ? (IsCardHovered ? Color.FromArgb(46, 46, 46) : Color.FromArgb(34, 34, 34))
+                            : (IsCardHovered ? Color.FromArgb(255, 255, 255) : Color.FromArgb(244, 244, 244));
+                        using (var brush = new SolidBrush(cardBg))
+                        {
+                            g.FillPath(brush, path);
+                        }
+                    }
+                    return;
+                }
+
                 if (f != null && f.acrylicBackdrop != null)
                 {
-                    ThemeHelper.DrawAcrylicBackground(e.Graphics, this, f, f.acrylicBackdrop);
+                    ThemeHelper.DrawAcrylicBackground(g, this, f, f.acrylicBackdrop);
                 }
                 else
                 {
-                    e.Graphics.Clear(ThemeHelper.Background);
+                    g.Clear(ThemeHelper.Background);
                 }
 
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Color glassFill = ThemeHelper.IsDarkTheme()
                     ? Color.FromArgb(IsCardHovered ? 36 : 22, 255, 255, 255)
                     : Color.FromArgb(IsCardHovered ? 242 : 218, 255, 255, 255);
                 using (var path = CreateRoundedPath(new Rectangle(0, 0, Math.Max(1, this.Width - 1), Math.Max(1, this.Height - 1)), 6))
                 using (var brush = new SolidBrush(glassFill))
                 {
-                    e.Graphics.FillPath(brush, path);
+                    g.FillPath(brush, path);
+                }
+            }
+        }
+
+        private class CornerEmptyCardPanel : Panel
+        {
+            public bool IsHubMode = true;
+            public string MainTitle = "Полка SuperHub пуста";
+            public string SubTitle = "Перетащите сюда файлы или нажмите Ctrl+Alt+C";
+
+            public CornerEmptyCardPanel()
+            {
+                this.DoubleBuffered = true;
+                this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                this.BackColor = Color.Transparent;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                Rectangle r = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
+                using (var path = CreateRoundedPath(r, 12))
+                using (var br = new SolidBrush(Color.FromArgb(38, 255, 255, 255)))
+                using (var pen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.2f))
+                {
+                    g.FillPath(br, path);
+                    g.DrawPath(pen, path);
+                }
+
+                int cx = this.Width / 2;
+                Rectangle iconRect = new Rectangle(cx - 16, 12, 32, 32);
+                Color iconColor = IsHubMode ? ThemeHelper.SuperHubSecondaryAccent : ThemeHelper.Accent;
+                DrawCategoryFlatIcon(g, iconRect, 0, iconColor, IsHubMode);
+
+                using (var fTitle = new Font("Segoe UI Semibold", 10.5f))
+                using (var bTitle = new SolidBrush(Color.White))
+                {
+                    var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    g.DrawString(MainTitle, fTitle, bTitle, new RectangleF(6, 48, this.Width - 12, 22), sf);
+                }
+
+                using (var fSub = new Font("Segoe UI", 8.5f))
+                using (var bSub = new SolidBrush(Color.FromArgb(190, 255, 255, 255)))
+                {
+                    var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    g.DrawString(SubTitle, fSub, bSub, new RectangleF(6, 70, this.Width - 12, 32), sf);
                 }
             }
         }
@@ -239,6 +312,8 @@ namespace PasteImageAsFile
         private static ClipboardFlyoutForm currentInstance;
         public static ClipboardFlyoutForm CurrentInstance { get { return currentInstance; } }
         private static readonly object instanceLock = new object();
+
+        public int CurrentMainTab { get { return currentMainTab; } }
 
         public static bool IsFlyoutOpen
         {
@@ -273,17 +348,38 @@ namespace PasteImageAsFile
         }
 
         private Bitmap acrylicBackdrop;
+        private Point backdropOrigin = Point.Empty;
+
+        public Point BackdropOrigin
+        {
+            get { return backdropOrigin; }
+        }
 
         public void UpdateAcrylicBackdrop(Point screenLoc)
         {
             try
             {
+                Screen scr = Screen.FromPoint(screenLoc);
+                if (scr == null) scr = Screen.PrimaryScreen;
+                Rectangle captureRect = (scr != null) ? scr.Bounds : new Rectangle(screenLoc, this.Size);
+
                 Bitmap old = acrylicBackdrop;
-                acrylicBackdrop = ThemeHelper.CaptureAcrylicBackdrop(new Rectangle(screenLoc, this.Size));
-                this.BackgroundImage = acrylicBackdrop;
+                backdropOrigin = captureRect.Location;
+                acrylicBackdrop = ThemeHelper.CaptureAcrylicBackdrop(captureRect, this);
+                this.BackgroundImage = null;
                 if (old != null) old.Dispose();
             }
             catch {}
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            if (acrylicBackdrop != null)
+            {
+                ThemeHelper.DrawAcrylicBackground(e.Graphics, this, this, acrylicBackdrop);
+                return;
+            }
+            e.Graphics.Clear(ThemeHelper.Background);
         }
 
         private IntPtr previousForegroundWindow = IntPtr.Zero;
@@ -343,6 +439,9 @@ namespace PasteImageAsFile
         private Button btnDragMode;
         private Button btnAddNote;
         private Button btnSearchToggle;
+        private Button btnDomePrev;
+        private Button btnDomeNext;
+        private CornerEmptyCardPanel pnlCornerEmpty;
         private bool isSearchOpen = false;
         private ToolTip toolTip;
         private bool isWindowPinned = false;
@@ -353,18 +452,142 @@ namespace PasteImageAsFile
 
         // Позиционирование и ресайз относительно маркера
         private bool isDockFlyout = false;
-        private bool hasMouseEnteredDock = false;
         private string dockPositionMode = "";
+        public bool IsHorizontalDockMode
+        {
+            get
+            {
+                return isDockFlyout && !string.IsNullOrEmpty(dockPositionMode) &&
+                       !IsCornerDockMode &&
+                       (string.Equals(dockPositionMode, "BottomCenter", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(dockPositionMode, "TopCenter", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(dockPositionMode, "Bottom", StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        public bool IsCornerDockMode
+        {
+            get
+            {
+                // Отключено: для угловых позиций используется стандартное вертикальное меню в стиле бокового дока
+                return false;
+            }
+        }
+
+        public static GraphicsPath CreateCornerPiePath(int w, int h, string pos)
+        {
+            var path = new GraphicsPath();
+            if (string.Equals(pos, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
+            {
+                path.AddPie(-w, 0, w * 2, h * 2, 270, 90);
+            }
+            else if (string.Equals(pos, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
+            {
+                path.AddPie(0, -h, w * 2, h * 2, 90, 90);
+            }
+            else if (string.Equals(pos, "CornerTopLeft", StringComparison.OrdinalIgnoreCase))
+            {
+                path.AddPie(-w, -h, w * 2, h * 2, 0, 90);
+            }
+            else // CornerBottomRight default
+            {
+                path.AddPie(0, 0, w * 2, h * 2, 180, 90);
+            }
+            return path;
+        }
+
+        public static void GetCornerGeometry(int w, int h, string pos, out PointF origin, out float startAngle, out float sweepAngle, out float bisectorAngle)
+        {
+            sweepAngle = 90f;
+            if (string.Equals(pos, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
+            {
+                origin = new PointF(0, h);
+                startAngle = 270f;
+                bisectorAngle = 315f;
+            }
+            else if (string.Equals(pos, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
+            {
+                origin = new PointF(w, 0);
+                startAngle = 90f;
+                bisectorAngle = 135f;
+            }
+            else if (string.Equals(pos, "CornerTopLeft", StringComparison.OrdinalIgnoreCase))
+            {
+                origin = new PointF(0, 0);
+                startAngle = 0f;
+                bisectorAngle = 45f;
+            }
+            else // CornerBottomRight default
+            {
+                origin = new PointF(w, h);
+                startAngle = 180f;
+                bisectorAngle = 225f;
+            }
+        }
+
+        public static PointF GetPolarPoint(PointF origin, float radius, float angleDeg)
+        {
+            double rad = angleDeg * Math.PI / 180.0;
+            return new PointF((float)(origin.X + radius * Math.Cos(rad)), (float)(origin.Y + radius * Math.Sin(rad)));
+        }
+
+        public static void DrawCornerArc(Graphics g, Pen pen, int w, int h, string pos, float r)
+        {
+            if (string.Equals(pos, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
+            {
+                g.DrawArc(pen, -r, h - r, r * 2f, r * 2f, 270, 90);
+            }
+            else if (string.Equals(pos, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
+            {
+                g.DrawArc(pen, w - r, -r, r * 2f, r * 2f, 90, 90);
+            }
+            else if (string.Equals(pos, "CornerTopLeft", StringComparison.OrdinalIgnoreCase))
+            {
+                g.DrawArc(pen, -r, -r, r * 2f, r * 2f, 0, 90);
+            }
+            else // CornerBottomRight default
+            {
+                g.DrawArc(pen, w - r, h - r, r * 2f, r * 2f, 180, 90);
+            }
+        }
+
+        private int arcScrollIndex = 0;
+
+        public void UpdateCornerRegion()
+        {
+            if (!IsCornerDockMode)
+            {
+                this.Region = null;
+                return;
+            }
+
+            int w = this.Width;
+            int h = this.Height;
+            if (w <= 20 || h <= 20) return;
+
+            try
+            {
+                using (var path = CreateCornerPiePath(w, h, dockPositionMode))
+                {
+                    this.Region = new Region(path);
+                }
+            }
+            catch {}
+        }
         private int anchorMarkerCenterY = 0;
         private Screen currentDockScreen = null;
+        private Rectangle dockMarkerBounds = Rectangle.Empty;
 
         // Таймер автоскрытия при уходе мыши
         private System.Windows.Forms.Timer mouseLeaveTimer;
         private int mouseAwayCounter = 0;
-
-        // Кастомный Fluent скроллбар
+        // Кастомный Fluent скроллбар (вертикальный и горизонтальный)
         private int scrollY = 0;
         private int maxScrollY = 0;
+        private int scrollX = 0;
+        private int maxScrollX = 0;
+        private int dragStartMouseX = 0;
+        private int dragStartScrollX = 0;
         private bool isDraggingScroll = false;
         public static bool IsLeftMouseButtonDown()
         {
@@ -424,29 +647,49 @@ namespace PasteImageAsFile
             return false;
         }
 
+        private static bool isGeneratingScreenshots = false;
+
         private bool isDraggingItemOut = false;
         private int dragStartMouseY = 0;
         private int dragStartScrollY = 0;
         private bool isHoveringScroll = false;
 
-        // Анимация плавного появления окна (Fade-in + Slide)
-        private System.Windows.Forms.Timer openAnimTimer;
-        private int openAnimStep = 0;
-        private const int OpenAnimTotalSteps = 6;
         private Point openTargetLocation;
         private Point openStartPoint;
 
-        public ClipboardFlyoutForm(IntPtr prevFg)
+        public ClipboardFlyoutForm(IntPtr prevFg, bool isDock = false, string dockPosition = null, Screen dockScreen = null)
         {
             Logger.Log("ClipboardFlyoutForm constructor start");
             this.previousForegroundWindow = prevFg;
+            this.isDockFlyout = isDock;
+            this.dockPositionMode = dockPosition ?? "";
+            this.currentDockScreen = dockScreen;
+
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
-            int initW = Math.Max(310, Config.ClipboardFlyoutWidth);
-            int initH = Math.Max(420, Config.ClipboardFlyoutHeight);
-            this.Size = new Size(initW, initH);
-            this.MinimumSize = new Size(310, 420);
+
+            if (this.IsCornerDockMode)
+            {
+                int rSize = 450;
+                this.Size = new Size(rSize, rSize);
+                this.MinimumSize = new Size(380, 380);
+            }
+            else if (this.IsHorizontalDockMode)
+            {
+                int initW = Math.Max(480, Config.SuperHubWidthHorizontal);
+                int initH = Math.Max(160, Config.SuperHubHeightHorizontal);
+                this.Size = new Size(initW, initH);
+                this.MinimumSize = new Size(480, 160);
+            }
+            else
+            {
+                int initW = Math.Max(310, Config.ClipboardFlyoutWidth);
+                int initH = Math.Max(420, Config.ClipboardFlyoutHeight);
+                this.Size = new Size(initW, initH);
+                this.MinimumSize = new Size(310, 420);
+            }
+
             this.DoubleBuffered = true;
             this.TopMost = true;
             this.Icon = Program.GetAppIcon(32);
@@ -504,7 +747,7 @@ namespace PasteImageAsFile
                 if (isWindowPinned || isShowingModalDialog || isDraggingItemOut || IsGlobalDraggingActive || IsLeftMouseButtonDown()) return;
 
                 Rectangle b = this.Bounds;
-                b.Inflate(36, 36);
+                b.Inflate(8, 8);
                 if (b.Contains(Cursor.Position)) return;
 
                 CloseFlyout();
@@ -528,7 +771,7 @@ namespace PasteImageAsFile
 
             // Таймер мягкого автоскрытия при уходе курсора за пределы боковой полки
             mouseLeaveTimer = new System.Windows.Forms.Timer();
-            mouseLeaveTimer.Interval = 100;
+            mouseLeaveTimer.Interval = 50;
             mouseLeaveTimer.Tick += OnMouseLeaveCheckTick;
             mouseLeaveTimer.Start();
 
@@ -540,28 +783,70 @@ namespace PasteImageAsFile
         private void OnMouseLeaveCheckTick(object sender, EventArgs e)
         {
             if (isWindowPinned || isShowingModalDialog || this.IsDisposed || !this.Visible) return;
-            if (isDraggingScroll || isDraggingItemOut || IsGlobalDraggingActive || IsLeftMouseButtonDown()) return;
+            if (isDraggingScroll || isDraggingItemOut || IsGlobalDraggingActive) return;
 
             // Если окно вызвано через Win+V / горячую клавишу (!isDockFlyout), оно НЕ должно закрываться от увода мыши!
             // Оно закрывается только после выбора элемента для вставки или по крестику / Esc / повторному Win+V.
             if (!isDockFlyout) return;
 
-            Rectangle bounds = this.Bounds;
-            bounds.Inflate(36, 36);
+            // Если активно всплывающее контекстное меню Windows (класс #32768), не скрываем меню
+            try
+            {
+                if (FindWindow("#32768", null) != IntPtr.Zero) return;
+            }
+            catch {}
 
             Point cur = Cursor.Position;
-            if (bounds.Contains(cur))
+            bool isOverMenuOrMarker = false;
+
+            Rectangle flyoutArea = this.Bounds;
+            flyoutArea.Inflate(8, 8); // Умеренный буфер 8px для естественного перемещения курсора
+
+            if (flyoutArea.Contains(cur))
             {
-                hasMouseEnteredDock = true;
+                isOverMenuOrMarker = true;
+            }
+            else
+            {
+                Rectangle markerArea = dockMarkerBounds;
+                if (markerArea == Rectangle.Empty)
+                {
+                    var dock = SuperHubDockForm.Instance;
+                    if (dock != null && !dock.IsDisposed && dock.Visible) markerArea = dock.Bounds;
+                }
+                if (markerArea != Rectangle.Empty)
+                {
+                    markerArea.Inflate(6, 6);
+                    if (markerArea.Contains(cur)) isOverMenuOrMarker = true;
+                }
+            }
+
+            if (isOverMenuOrMarker)
+            {
                 mouseAwayCounter = 0;
             }
-            else if (hasMouseEnteredDock)
+            else
             {
-                mouseAwayCounter++;
-                if (mouseAwayCounter >= 8) // ~800 мс после ухода мыши из боковой полки
+                // Если пользователь кликнул ЛКМ вне пределов меню (по другому окну/рабочему столу),
+                // закрываем меню немедленно!
+                if (IsLeftMouseButtonDown())
                 {
                     mouseAwayCounter = 0;
                     CloseFlyout();
+                    return;
+                }
+
+                int autoCloseDelay = Config.SuperHubAutoHideDelay;
+                if (autoCloseDelay > 0)
+                {
+                    mouseAwayCounter++;
+                    int interval = mouseLeaveTimer != null ? mouseLeaveTimer.Interval : 50;
+                    int requiredTicks = Math.Max(1, autoCloseDelay / interval);
+                    if (mouseAwayCounter >= requiredTicks)
+                    {
+                        mouseAwayCounter = 0;
+                        CloseFlyout();
+                    }
                 }
             }
         }
@@ -570,11 +855,11 @@ namespace PasteImageAsFile
         {
             try
             {
-                int corner = DWMWCP_ROUND;
+                int corner = IsCornerDockMode ? 1 : DWMWCP_ROUND;
                 DwmSetWindowAttribute(this.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
                 int dark = ThemeHelper.IsDarkTheme() ? 1 : 0;
                 DwmSetWindowAttribute(this.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
-                int backdrop = 3; // DWMSBT_TRANSIENTWINDOW (Acrylic)
+                int backdrop = IsCornerDockMode ? 0 : 3; // 0 = Отключить системный DWM-акрил для углового сектора 90°, исключая паразитные прямоугольные уши
                 DwmSetWindowAttribute(this.Handle, 38, ref backdrop, sizeof(int));
             }
             catch {}
@@ -586,17 +871,17 @@ namespace PasteImageAsFile
             this.BackColor = ThemeHelper.Background;
             this.ForeColor = ThemeHelper.TextPrimary;
 
-            if (pnlTopBar != null) pnlTopBar.BackColor = ThemeHelper.HeaderBackground;
+            if (pnlTopBar != null) pnlTopBar.BackColor = Color.Transparent;
             if (lblAppHeader != null) lblAppHeader.ForeColor = ThemeHelper.TextSecondary;
             if (btnClose != null) btnClose.ForeColor = ThemeHelper.TextSecondary;
             if (btnPinWindow != null && !isWindowPinned) btnPinWindow.ForeColor = ThemeHelper.TextSecondary;
 
-            if (pnlMainTabs != null) pnlMainTabs.BackColor = ThemeHelper.HeaderBackground;
-            if (pnlSubBar != null) pnlSubBar.BackColor = ThemeHelper.Background;
+            if (pnlMainTabs != null) pnlMainTabs.BackColor = Color.Transparent;
+            if (pnlSubBar != null) pnlSubBar.BackColor = Color.Transparent;
 
             if (btnClearAll != null)
             {
-                btnClearAll.BackColor = ThemeHelper.CardBackground;
+                btnClearAll.BackColor = Color.Transparent;
                 btnClearAll.ForeColor = ThemeHelper.TextPrimary;
             }
 
@@ -610,7 +895,7 @@ namespace PasteImageAsFile
 
             if (btnAddNote != null)
             {
-                btnAddNote.BackColor = ThemeHelper.CardBackground;
+                btnAddNote.BackColor = Color.Transparent;
                 btnAddNote.ForeColor = ThemeHelper.TextPrimary;
             }
 
@@ -626,14 +911,9 @@ namespace PasteImageAsFile
 
         public void CloseFlyout()
         {
+            if (isGeneratingScreenshots) return;
             try
             {
-                if (openAnimTimer != null)
-                {
-                    openAnimTimer.Stop();
-                    openAnimTimer.Dispose();
-                    openAnimTimer = null;
-                }
                 if (mouseLeaveTimer != null)
                 {
                     mouseLeaveTimer.Stop();
@@ -642,10 +922,18 @@ namespace PasteImageAsFile
                 }
                 try
                 {
-                    if (this.WindowState == FormWindowState.Normal && this.Width >= 260 && this.Height >= 240)
+                    if (this.WindowState == FormWindowState.Normal && this.Width >= 260 && this.Height >= 160)
                     {
-                        Config.ClipboardFlyoutWidth = this.Width;
-                        Config.ClipboardFlyoutHeight = this.Height;
+                        if (IsHorizontalDockMode)
+                        {
+                            Config.SuperHubWidthHorizontal = this.Width;
+                            Config.SuperHubHeightHorizontal = this.Height;
+                        }
+                        else
+                        {
+                            Config.ClipboardFlyoutWidth = this.Width;
+                            Config.ClipboardFlyoutHeight = this.Height;
+                        }
                     }
                 }
                 catch {}
@@ -671,64 +959,24 @@ namespace PasteImageAsFile
         public void AnimateIn(Point targetPoint, Point startPoint)
         {
             openTargetLocation = targetPoint;
-            openStartPoint = startPoint;
+            openStartPoint = targetPoint;
 
             // Захватываем размытый матовый фон экрана под целевой позицией ДО появления окна
             UpdateAcrylicBackdrop(targetPoint);
 
+            this.Location = targetPoint;
             this.Opacity = 0.96;
-            this.Location = startPoint;
             this.Show();
             this.BringToFront();
             // Не вызываем SetForegroundWindow(this.Handle) / this.Activate(),
             // чтобы пользователь мог продолжать печатать в своем активном окне!
             UpdateSubBarLayout();
-
-            if (openAnimTimer != null)
-            {
-                openAnimTimer.Stop();
-                openAnimTimer.Dispose();
-            }
-
-            openAnimStep = 0;
-            openAnimTimer = new System.Windows.Forms.Timer();
-            openAnimTimer.Interval = 10;
-            openAnimTimer.Tick += (s, e) => {
-                if (this.IsDisposed || !this.IsHandleCreated)
-                {
-                    if (openAnimTimer != null)
-                    {
-                        openAnimTimer.Stop();
-                        openAnimTimer.Dispose();
-                        openAnimTimer = null;
-                    }
-                    return;
-                }
-
-                openAnimStep++;
-                float t = (float)openAnimStep / OpenAnimTotalSteps;
-                if (t > 1.0f) t = 1.0f;
-                float ease = (float)(1.0 - Math.Pow(1.0 - t, 3));
-
-                int curX = (int)(openStartPoint.X + (openTargetLocation.X - openStartPoint.X) * ease);
-                int curY = (int)(openStartPoint.Y + (openTargetLocation.Y - openStartPoint.Y) * ease);
-                this.Location = new Point(curX, curY);
-
-                if (openAnimStep >= OpenAnimTotalSteps)
-                {
-                    openAnimTimer.Stop();
-                    openAnimTimer.Dispose();
-                    openAnimTimer = null;
-                    this.Location = openTargetLocation;
-                }
-            };
-            openAnimTimer.Start();
+            this.Invalidate(true);
         }
 
         public void AnimateIn(Point targetPoint, bool isFromBottom)
         {
-            int offset = isFromBottom ? 14 : -14;
-            AnimateIn(targetPoint, new Point(targetPoint.X, targetPoint.Y + offset));
+            AnimateIn(targetPoint, targetPoint);
         }
 
         protected override void WndProc(ref Message m)
@@ -772,10 +1020,27 @@ namespace PasteImageAsFile
             const int WM_EXITSIZEMOVE = 0x0232;
             if (m.Msg == WM_EXITSIZEMOVE)
             {
-                if (this.WindowState == FormWindowState.Normal && this.Width >= 310 && this.Height >= 420)
+                if (this.WindowState == FormWindowState.Normal)
                 {
-                    Config.ClipboardFlyoutWidth = this.Width;
-                    Config.ClipboardFlyoutHeight = this.Height;
+                    if (IsHorizontalDockMode)
+                    {
+                        Config.SuperHubWidthHorizontal = this.Width;
+                        Config.SuperHubHeightHorizontal = this.Height;
+                    }
+                    else if (this.Width >= 310 && this.Height >= 420)
+                    {
+                        Config.ClipboardFlyoutWidth = this.Width;
+                        Config.ClipboardFlyoutHeight = this.Height;
+                    }
+
+                    // Если окно переместилось на другой монитор или за пределы захваченного экрана, обновляем фон
+                    Screen currentScr = Screen.FromControl(this);
+                    if (currentScr != null && (backdropOrigin != currentScr.Bounds.Location || acrylicBackdrop == null || acrylicBackdrop.Width < currentScr.Bounds.Width))
+                    {
+                        UpdateAcrylicBackdrop(this.Location);
+                    }
+
+                    this.Invalidate(true);
                 }
             }
             if (m.Msg == WM_SIZING && isDockFlyout)
@@ -785,28 +1050,40 @@ namespace PasteImageAsFile
                 if (edge == 3 || edge == 6 || edge == 4 || edge == 5 || edge == 7 || edge == 8)
                 {
                     RECT r = (RECT)Marshal.PtrToStructure(m.LParam, typeof(RECT));
-                    int newH = r.Bottom - r.Top;
-                    if (newH < 420) newH = 420;
-                    if (newH > 1400) newH = 1400;
-
                     Screen s = currentDockScreen ?? Screen.FromPoint(new Point(r.Left, anchorMarkerCenterY > 0 ? anchorMarkerCenterY : r.Top));
                     Rectangle wk = s.WorkingArea;
+
+                    if (IsHorizontalDockMode)
+                    {
+                        int newH = r.Bottom - r.Top;
+                        if (newH < 160) newH = 160;
+                        if (newH > 500) newH = 500;
+                        r.Bottom = wk.Bottom - 4;
+                        r.Top = r.Bottom - newH;
+                        Marshal.StructureToPtr(r, m.LParam, true);
+                        m.Result = (IntPtr)1;
+                        return;
+                    }
+
+                    int newHVert = r.Bottom - r.Top;
+                    if (newHVert < 420) newHVert = 420;
+                    if (newHVert > 1400) newHVert = 1400;
 
                     if (dockPositionMode.IndexOf("CornerBottom", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         r.Bottom = wk.Bottom - 4;
-                        r.Top = r.Bottom - newH;
+                        r.Top = r.Bottom - newHVert;
                     }
                     else if (dockPositionMode.IndexOf("CornerTop", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         r.Top = wk.Top + 4;
-                        r.Bottom = r.Top + newH;
+                        r.Bottom = r.Top + newHVert;
                     }
                     else if (anchorMarkerCenterY > 0)
                     {
-                        int half = newH / 2;
+                        int half = newHVert / 2;
                         r.Top = anchorMarkerCenterY - half;
-                        r.Bottom = r.Top + newH;
+                        r.Bottom = r.Top + newHVert;
 
                         if (r.Top < wk.Top + 4)
                         {
@@ -830,8 +1107,16 @@ namespace PasteImageAsFile
             if (m.Msg == WM_GETMINMAXINFO)
             {
                 MINMAXINFO mmi = (MINMAXINFO)Marshal.PtrToStructure(m.LParam, typeof(MINMAXINFO));
-                mmi.ptMinTrackSize = new Point(310, 420);
-                mmi.ptMaxTrackSize = new Point(1600, 1400);
+                if (IsHorizontalDockMode)
+                {
+                    mmi.ptMinTrackSize = new Point(480, 160);
+                    mmi.ptMaxTrackSize = new Point(1920, 600);
+                }
+                else
+                {
+                    mmi.ptMinTrackSize = new Point(310, 420);
+                    mmi.ptMaxTrackSize = new Point(1600, 1400);
+                }
                 Marshal.StructureToPtr(mmi, m.LParam, true);
                 return;
             }
@@ -925,7 +1210,7 @@ namespace PasteImageAsFile
             {
                 var b = filterButtons[i];
                 int btnW = (i == 1) ? 38 : 34;
-                Padding m = (i == 0) ? new Padding(1, 0, 5, 0) : new Padding(1, 0, 1, 0);
+                Padding m = (i == 0) ? new Padding(1, 0, 5, 0) : (i == 1 ? new Padding(5, 0, 1, 0) : new Padding(1, 0, 1, 0));
                 b.Size = new Size(btnW, btnH);
                 b.Margin = m;
                 totalTabsW += btnW + m.Left + m.Right;
@@ -960,15 +1245,15 @@ namespace PasteImageAsFile
 
         private void UpdateSubBarLayout()
         {
-            if (pnlSubBar == null) return;
+            if (pnlSubBar == null || IsCornerDockMode) return;
 
             int w = this.ClientSize.Width;
-            pnlSubBar.Width = w;
+            if (!IsHorizontalDockMode) pnlSubBar.Width = w;
 
             if (lblAppHeader != null)
             {
                 lblAppHeader.Text = (currentMainTab == 1) ? "SuperHub" : "Буфер обмена";
-                lblAppHeader.Visible = true;
+                lblAppHeader.Visible = !IsHorizontalDockMode;
                 lblAppHeader.Invalidate();
             }
             if (pnlTopBar != null) pnlTopBar.Invalidate();
@@ -982,7 +1267,65 @@ namespace PasteImageAsFile
                 toolTip.SetToolTip(filterButtons[0], modeTip);
             }
 
-            int rightX = w - 14;
+            int rightX;
+            if (IsHorizontalDockMode)
+            {
+                if (lblSectionTitle != null) lblSectionTitle.Visible = false;
+
+                int actionsCount = (currentMainTab == 1 ? 4 : 2);
+                int actionsWidth = actionsCount * 28 + 4;
+                pnlSubBar.Width = actionsWidth;
+
+                // Кнопки действий прижимаются к правому краю pnlSubBar (вплотную к системным кнопкам pnlTopBar)
+                int curSubX = actionsWidth - 2;
+
+                if (btnClearAll != null)
+                {
+                    btnClearAll.Visible = true;
+                    btnClearAll.Size = new Size(24, 24);
+                    btnClearAll.Location = new Point(curSubX - 24, 6);
+                    btnClearAll.BringToFront();
+                    curSubX -= 28;
+                }
+                if (btnSearchToggle != null)
+                {
+                    btnSearchToggle.Visible = true;
+                    btnSearchToggle.Size = new Size(24, 24);
+                    btnSearchToggle.Location = new Point(curSubX - 24, 6);
+                    btnSearchToggle.BringToFront();
+                    curSubX -= 28;
+                }
+
+                if (currentMainTab == 1)
+                {
+                    if (btnAddNote != null)
+                    {
+                        btnAddNote.Visible = true;
+                        btnAddNote.Size = new Size(24, 24);
+                        btnAddNote.Location = new Point(curSubX - 24, 6);
+                        btnAddNote.BringToFront();
+                        curSubX -= 28;
+                    }
+                    if (btnDragMode != null)
+                    {
+                        btnDragMode.Visible = true;
+                        btnDragMode.Size = new Size(24, 24);
+                        btnDragMode.Location = new Point(curSubX - 24, 6);
+                        btnDragMode.BringToFront();
+                        curSubX -= 28;
+                    }
+                }
+                else
+                {
+                    if (btnAddNote != null) btnAddNote.Visible = false;
+                    if (btnDragMode != null) btnDragMode.Visible = false;
+                }
+                if (btnDropHint != null) btnDropHint.Visible = false;
+                if (pnlFolders != null) pnlFolders.Visible = false;
+                return;
+            }
+
+            rightX = w - 14;
 
             // 1. Справа иконочная кнопка [🗑️ Очистить все] (26x26)
             if (btnClearAll != null)
@@ -1070,6 +1413,83 @@ namespace PasteImageAsFile
             }
         }
 
+        private void LayoutCardInternalControls(Control card, int cardW, int cardH, bool isHoriz)
+        {
+            if (card == null) return;
+            card.Size = new Size(cardW, cardH);
+
+            foreach (Control sub in card.Controls)
+            {
+                if (sub is Button)
+                {
+                    string tag = sub.Tag != null ? sub.Tag.ToString() : "";
+                    if (tag == "btn_more") { sub.Left = cardW - 30; sub.Top = 6; sub.Size = new Size(24, 22); }
+                    else if (tag == "btn_pin") { sub.Left = cardW - 30; sub.Top = cardH - 28; sub.Size = new Size(24, 22); }
+                }
+                else if (sub is Panel && sub.Tag != null && sub.Tag.ToString() == "img_preview")
+                {
+                    if (isHoriz)
+                    {
+                        sub.Location = new Point(6, 6);
+                        sub.Size = new Size(Math.Max(50, cardW - 38), Math.Max(40, cardH - 12));
+                    }
+                    else
+                    {
+                        sub.Location = new Point(12, 10);
+                        sub.Size = new Size(Math.Max(60, cardW - 50), Math.Max(40, cardH - 20));
+                    }
+                }
+                else if (sub is Label)
+                {
+                    if (isHoriz)
+                    {
+                        if (card.Tag is ClipboardItem && ((ClipboardItem)card.Tag).Type == ClipboardItemType.Text)
+                        {
+                            sub.Left = 10;
+                            sub.Top = 8;
+                            sub.Width = Math.Max(40, cardW - 42);
+                            sub.Height = Math.Max(20, cardH - 16);
+                        }
+                        else if (sub.Top > 25)
+                        {
+                            sub.Left = 46;
+                            sub.Top = 32;
+                            sub.Width = Math.Max(30, cardW - 46 - 32);
+                        }
+                        else
+                        {
+                            sub.Left = 46;
+                            sub.Top = 10;
+                            sub.Width = Math.Max(30, cardW - 46 - 32);
+                        }
+                    }
+                    else
+                    {
+                        if (sub.Top > 25)
+                        {
+                            sub.Width = Math.Max(30, cardW - sub.Left - 38);
+                        }
+                        else
+                        {
+                            sub.Width = Math.Max(30, cardW - sub.Left - 38);
+                            if (card.Tag is ClipboardItem && ((ClipboardItem)card.Tag).Type == ClipboardItemType.Text)
+                            {
+                                sub.Height = Math.Max(20, cardH - 22);
+                            }
+                        }
+                    }
+                }
+                else if (sub is Panel && sub.Tag == null)
+                {
+                    if (isHoriz)
+                    {
+                        sub.Location = new Point(8, Math.Max(6, (cardH - 36) / 2));
+                        sub.Size = new Size(32, 32);
+                    }
+                }
+            }
+        }
+
         private void LayoutControls()
         {
             if (pnlTopBar == null) return;
@@ -1078,61 +1498,421 @@ namespace PasteImageAsFile
             int w = this.ClientSize.Width;
             int h = this.ClientSize.Height;
 
-            // 1. Верхняя системная полоса Windows 11 (TopBar) - 32px
-            pnlTopBar.Location = new Point(0, 0);
-            pnlTopBar.Size = new Size(w, 32);
+            if (IsCornerDockMode)
+            {
+                // Секторный UI 90° (четверть круга из угла экрана, точно как угловой маркер)
+                PointF origin;
+                float startAngle, sweepAngle, bisectorAngle;
+                GetCornerGeometry(w, h, dockPositionMode, out origin, out startAngle, out sweepAngle, out bisectorAngle);
 
-            if (btnOpenSettings != null)
-            {
-                btnOpenSettings.Size = new Size(22, 22);
-                btnOpenSettings.Location = new Point(12, 5);
-            }
-            if (btnClickAction != null)
-            {
-                btnClickAction.Visible = true;
-                btnClickAction.Size = new Size(22, 22);
-                btnClickAction.Location = new Point(w - 84, 5);
-            }
-            if (btnPinWindow != null)
-            {
-                btnPinWindow.Size = new Size(22, 22);
-                btnPinWindow.Location = new Point(w - 60, 5);
-            }
-            if (btnMinimize != null)
-            {
-                btnMinimize.Visible = false;
-            }
-            if (lblAppHeader != null)
-            {
-                lblAppHeader.Text = (currentMainTab == 1) ? "SuperHub" : "Буфер обмена";
-                lblAppHeader.Visible = true;
-                lblAppHeader.Location = new Point(86, 4);
-                lblAppHeader.Size = new Size(Math.Max(80, w - 172), 24);
-            }
-            if (btnClose != null)
-            {
-                btnClose.Size = new Size(26, 24);
-                btnClose.Location = new Point(w - 34, 4);
+                // Скрываем прямоугольные шапки Win+V режима
+                pnlTopBar.Visible = false;
+                pnlMainTabs.Visible = false;
+                pnlSubBar.Visible = false;
+                if (lblAppHeader != null) lblAppHeader.Visible = false;
+                if (pnlFolders != null) pnlFolders.Visible = false;
+
+                float scale = Math.Max(0.85f, Math.Min(1.2f, (float)w / 440f));
+
+                // Кнопки в угловом секторе должны быть строго прозрачными без прямоугольных непрозрачных подложек
+                if (btnOpenSettings != null) btnOpenSettings.BackColor = Color.Transparent;
+                if (btnClose != null) btnClose.BackColor = Color.Transparent;
+                if (btnPinWindow != null) btnPinWindow.BackColor = Color.Transparent;
+                if (btnClickAction != null) btnClickAction.BackColor = Color.Transparent;
+                if (btnClearAll != null) btnClearAll.BackColor = Color.Transparent;
+                if (btnSearchToggle != null) btnSearchToggle.BackColor = Color.Transparent;
+                if (btnAddNote != null) btnAddNote.BackColor = Color.Transparent;
+                if (btnDragMode != null) btnDragMode.BackColor = Color.Transparent;
+                for (int i = 0; i < filterButtons.Count; i++)
+                {
+                    filterButtons[i].BackColor = Color.Transparent;
+                }
+
+                // 1. Внутренний сектор: системные кнопки у вершины угла (дуга r = 52)
+                float rSystem = 52f * scale;
+                PointF ptSet = GetPolarPoint(origin, rSystem, bisectorAngle - 28f);
+                PointF ptClose = GetPolarPoint(origin, rSystem, bisectorAngle);
+                PointF ptPin = GetPolarPoint(origin, rSystem, bisectorAngle + 28f);
+
+                if (btnOpenSettings != null)
+                {
+                    if (btnOpenSettings.Parent != this) this.Controls.Add(btnOpenSettings);
+                    btnOpenSettings.Size = new Size(22, 22);
+                    btnOpenSettings.Location = new Point((int)(ptSet.X - 11), (int)(ptSet.Y - 11));
+                    btnOpenSettings.Visible = true;
+                    btnOpenSettings.BringToFront();
+                }
+
+                if (btnClose != null)
+                {
+                    if (btnClose.Parent != this) this.Controls.Add(btnClose);
+                    btnClose.Size = new Size(22, 22);
+                    btnClose.Location = new Point((int)(ptClose.X - 11), (int)(ptClose.Y - 11));
+                    btnClose.Visible = true;
+                    btnClose.BringToFront();
+                }
+
+                if (btnPinWindow != null)
+                {
+                    if (btnPinWindow.Parent != this) this.Controls.Add(btnPinWindow);
+                    btnPinWindow.Size = new Size(22, 22);
+                    btnPinWindow.Location = new Point((int)(ptPin.X - 11), (int)(ptPin.Y - 11));
+                    btnPinWindow.Visible = true;
+                    btnPinWindow.BringToFront();
+                }
+
+                // 2. Двойной переключатель режимов: Буфер обмена / SuperHub (дуга r = 96)
+                float rMode = 96f * scale;
+                PointF ptClip = GetPolarPoint(origin, rMode, bisectorAngle - 16f);
+                PointF ptHub = GetPolarPoint(origin, rMode, bisectorAngle + 16f);
+                if (btnMainClipboard != null)
+                {
+                    if (btnMainClipboard.Parent != this) this.Controls.Add(btnMainClipboard);
+                    btnMainClipboard.Visible = true;
+                    btnMainClipboard.Size = new Size(30, 30);
+                    btnMainClipboard.Location = new Point((int)(ptClip.X - 15), (int)(ptClip.Y - 15));
+                    btnMainClipboard.BringToFront();
+                }
+                if (btnMainSuperHub != null)
+                {
+                    if (btnMainSuperHub.Parent != this) this.Controls.Add(btnMainSuperHub);
+                    btnMainSuperHub.Visible = true;
+                    btnMainSuperHub.Size = new Size(30, 30);
+                    btnMainSuperHub.Location = new Point((int)(ptHub.X - 15), (int)(ptHub.Y - 15));
+                    btnMainSuperHub.BringToFront();
+                }
+
+                // 3. Быстрые действия (дуга r = 146)
+                float rActions = 146f * scale;
+                if (currentMainTab == 1) // SuperHub
+                {
+                    PointF ptClr = GetPolarPoint(origin, rActions, bisectorAngle - 27f);
+                    PointF ptSrch = GetPolarPoint(origin, rActions, bisectorAngle - 9f);
+                    PointF ptNote = GetPolarPoint(origin, rActions, bisectorAngle + 9f);
+                    PointF ptDrag = GetPolarPoint(origin, rActions, bisectorAngle + 27f);
+
+                    if (btnClearAll != null)
+                    {
+                        if (btnClearAll.Parent != this) this.Controls.Add(btnClearAll);
+                        btnClearAll.Size = new Size(24, 24);
+                        btnClearAll.Location = new Point((int)(ptClr.X - 12), (int)(ptClr.Y - 12));
+                        btnClearAll.Visible = true;
+                        btnClearAll.BringToFront();
+                    }
+                    if (btnSearchToggle != null)
+                    {
+                        if (btnSearchToggle.Parent != this) this.Controls.Add(btnSearchToggle);
+                        btnSearchToggle.Size = new Size(24, 24);
+                        btnSearchToggle.Location = new Point((int)(ptSrch.X - 12), (int)(ptSrch.Y - 12));
+                        btnSearchToggle.Visible = true;
+                        btnSearchToggle.BringToFront();
+                    }
+                    if (btnAddNote != null)
+                    {
+                        if (btnAddNote.Parent != this) this.Controls.Add(btnAddNote);
+                        btnAddNote.Size = new Size(24, 24);
+                        btnAddNote.Location = new Point((int)(ptNote.X - 12), (int)(ptNote.Y - 12));
+                        btnAddNote.Visible = true;
+                        btnAddNote.BringToFront();
+                    }
+                    if (btnDragMode != null)
+                    {
+                        if (btnDragMode.Parent != this) this.Controls.Add(btnDragMode);
+                        btnDragMode.Size = new Size(24, 24);
+                        btnDragMode.Location = new Point((int)(ptDrag.X - 12), (int)(ptDrag.Y - 12));
+                        btnDragMode.Visible = true;
+                        btnDragMode.BringToFront();
+                    }
+                    if (btnClickAction != null) btnClickAction.Visible = false;
+                }
+                else // Буфер обмена
+                {
+                    PointF ptClr = GetPolarPoint(origin, rActions, bisectorAngle - 22f);
+                    PointF ptSrch = GetPolarPoint(origin, rActions, bisectorAngle);
+                    PointF ptAct = GetPolarPoint(origin, rActions, bisectorAngle + 22f);
+
+                    if (btnClearAll != null)
+                    {
+                        if (btnClearAll.Parent != this) this.Controls.Add(btnClearAll);
+                        btnClearAll.Size = new Size(24, 24);
+                        btnClearAll.Location = new Point((int)(ptClr.X - 12), (int)(ptClr.Y - 12));
+                        btnClearAll.Visible = true;
+                        btnClearAll.BringToFront();
+                    }
+                    if (btnSearchToggle != null)
+                    {
+                        if (btnSearchToggle.Parent != this) this.Controls.Add(btnSearchToggle);
+                        btnSearchToggle.Size = new Size(24, 24);
+                        btnSearchToggle.Location = new Point((int)(ptSrch.X - 12), (int)(ptSrch.Y - 12));
+                        btnSearchToggle.Visible = true;
+                        btnSearchToggle.BringToFront();
+                    }
+                    if (btnClickAction != null)
+                    {
+                        if (btnClickAction.Parent != this) this.Controls.Add(btnClickAction);
+                        btnClickAction.Size = new Size(24, 24);
+                        btnClickAction.Location = new Point((int)(ptAct.X - 12), (int)(ptAct.Y - 12));
+                        btnClickAction.Visible = true;
+                        btnClickAction.BringToFront();
+                    }
+                    if (btnAddNote != null) btnAddNote.Visible = false;
+                    if (btnDragMode != null) btnDragMode.Visible = false;
+                }
+
+                // 4. Дуга категорий / фильтров (дуга r = 196)
+                float rFilters = 196f * scale;
+                if (filterButtons.Count > 0)
+                {
+                    filterButtons[0].Visible = false;
+                }
+                int filterCount = Math.Max(0, filterButtons.Count - 1);
+                for (int k = 0; k < filterCount; k++)
+                {
+                    float fAngle = bisectorAngle - 33f + k * 11f;
+                    PointF ptF = GetPolarPoint(origin, rFilters, fAngle);
+                    Button b = filterButtons[k + 1];
+                    if (b.Parent != this) this.Controls.Add(b);
+                    b.Size = new Size(26, 26);
+                    b.Location = new Point((int)(ptF.X - 13), (int)(ptF.Y - 13));
+                    b.Visible = true;
+                    b.BringToFront();
+                }
+
+                // 5. Поиск (если активен)
+                if (pnlSearch != null)
+                {
+                    pnlSearch.Visible = isSearchOpen || (txtSearch != null && !string.IsNullOrEmpty(txtSearch.Text));
+                    if (pnlSearch.Visible)
+                    {
+                        PointF ptSrchBar = GetPolarPoint(origin, 236f * scale, bisectorAngle);
+                        int sW = 200;
+                        pnlSearch.Location = new Point((int)(ptSrchBar.X - sW / 2), (int)(ptSrchBar.Y - 16));
+                        pnlSearch.Size = new Size(sW, 32);
+                        if (searchBoxBg != null) searchBoxBg.Width = pnlSearch.Width;
+                        if (txtSearch != null && searchBoxBg != null) txtSearch.Width = Math.Max(60, searchBoxBg.ClientSize.Width - 36);
+                        pnlSearch.BringToFront();
+                    }
+                }
+
+                // 6. Полноразмерный вьюпорт для дугового размещения карточек (отправляем назад, чтобы не перекрывал кнопки)
+                if (pnlViewport != null)
+                {
+                    pnlViewport.SendToBack();
+                    pnlViewport.Location = new Point(0, 0);
+                    pnlViewport.Size = new Size(w, h);
+                    pnlViewport.BackColor = Color.Transparent;
+                    if (cardsContainerClipboard != null)
+                    {
+                        cardsContainerClipboard.Location = new Point(0, 0);
+                        cardsContainerClipboard.Size = new Size(w, h);
+                        cardsContainerClipboard.BackColor = Color.Transparent;
+                        cardsContainerClipboard.Visible = (currentMainTab == 0);
+                    }
+                    if (cardsContainerSuperHub != null)
+                    {
+                        cardsContainerSuperHub.Location = new Point(0, 0);
+                        cardsContainerSuperHub.Size = new Size(w, h);
+                        cardsContainerSuperHub.BackColor = Color.Transparent;
+                        cardsContainerSuperHub.Visible = (currentMainTab == 1);
+                    }
+
+                    Panel activeCont = (currentMainTab == 1) ? cardsContainerSuperHub : cardsContainerClipboard;
+                    LayoutCornerCards(activeCont, currentMainTab == 1);
+                }
+
+                // Гарантируем, что все интерактивные кнопки находятся поверх вьюпорта
+                if (btnClose != null && btnClose.Visible) btnClose.BringToFront();
+                if (btnOpenSettings != null && btnOpenSettings.Visible) btnOpenSettings.BringToFront();
+                if (btnPinWindow != null && btnPinWindow.Visible) btnPinWindow.BringToFront();
+                if (btnMainClipboard != null && btnMainClipboard.Visible) btnMainClipboard.BringToFront();
+                if (btnMainSuperHub != null && btnMainSuperHub.Visible) btnMainSuperHub.BringToFront();
+                if (btnClearAll != null && btnClearAll.Visible) btnClearAll.BringToFront();
+                if (btnSearchToggle != null && btnSearchToggle.Visible) btnSearchToggle.BringToFront();
+                if (btnAddNote != null && btnAddNote.Visible) btnAddNote.BringToFront();
+                if (btnDragMode != null && btnDragMode.Visible) btnDragMode.BringToFront();
+                if (btnClickAction != null && btnClickAction.Visible) btnClickAction.BringToFront();
+                for (int fb = 1; fb < filterButtons.Count; fb++)
+                {
+                    if (filterButtons[fb].Visible) filterButtons[fb].BringToFront();
+                }
+                if (btnDomePrev != null && btnDomePrev.Visible) btnDomePrev.BringToFront();
+                if (btnDomeNext != null && btnDomeNext.Visible) btnDomeNext.BringToFront();
+                if (pnlSearch != null && pnlSearch.Visible) pnlSearch.BringToFront();
+
+                UpdateCornerRegion();
+                this.ResumeLayout(true);
+                return;
             }
 
-            // 2. Панель плоских иконок категорий (как в Win+V Windows 11) - 40px
-            if (pnlMainTabs != null)
+            // Возврат элементов в родительские контейнеры для обычных режимов
+            if (btnClose != null) { btnClose.BackColor = Color.Transparent; if (btnClose.Parent != pnlTopBar) pnlTopBar.Controls.Add(btnClose); }
+            if (btnPinWindow != null) { btnPinWindow.BackColor = Color.Transparent; if (btnPinWindow.Parent != pnlTopBar) pnlTopBar.Controls.Add(btnPinWindow); }
+            if (btnClickAction != null) { btnClickAction.BackColor = Color.Transparent; if (btnClickAction.Parent != pnlTopBar) pnlTopBar.Controls.Add(btnClickAction); }
+            if (btnOpenSettings != null) { btnOpenSettings.BackColor = Color.Transparent; if (btnOpenSettings.Parent != pnlTopBar) pnlTopBar.Controls.Add(btnOpenSettings); }
+            if (btnClearAll != null) { btnClearAll.BackColor = Color.Transparent; if (btnClearAll.Parent != pnlSubBar) pnlSubBar.Controls.Add(btnClearAll); }
+            if (btnSearchToggle != null) { btnSearchToggle.BackColor = Color.Transparent; if (btnSearchToggle.Parent != pnlSubBar) pnlSubBar.Controls.Add(btnSearchToggle); }
+            if (btnAddNote != null) { btnAddNote.BackColor = Color.Transparent; if (btnAddNote.Parent != pnlSubBar) pnlSubBar.Controls.Add(btnAddNote); }
+            if (btnDragMode != null) { btnDragMode.BackColor = Color.Transparent; if (btnDragMode.Parent != pnlSubBar) pnlSubBar.Controls.Add(btnDragMode); }
+            if (btnMainClipboard != null) btnMainClipboard.Visible = false;
+            if (btnMainSuperHub != null) btnMainSuperHub.Visible = false;
+            if (pnlCornerEmpty != null) pnlCornerEmpty.Visible = false;
+            if (flpSubTabs != null)
             {
-                pnlMainTabs.Location = new Point(0, 32);
-                pnlMainTabs.Size = new Size(w, 40);
-                if (btnMainClipboard != null) btnMainClipboard.Visible = false;
-                if (btnMainSuperHub != null) btnMainSuperHub.Visible = false;
+                foreach (var b in filterButtons)
+                {
+                    if (b.Parent != flpSubTabs) flpSubTabs.Controls.Add(b);
+                    b.Visible = true;
+                }
             }
+            pnlTopBar.Visible = true;
+            pnlMainTabs.Visible = true;
+            pnlSubBar.Visible = true;
 
-            // 3. Строка названия фильтра и иконочных кнопок действий (SubBar) - 36px
-            if (pnlSubBar != null)
+            int curY;
+
+            if (IsHorizontalDockMode)
             {
-                pnlSubBar.Location = new Point(0, 72);
-                pnlSubBar.Size = new Size(w, 36);
-                UpdateSubBarLayout();
-            }
+                int headerY = 0;
+                int sysBtnsWidth = 108; // 4 системные кнопки справа (104px + зазор)
+                int actionsCount = (currentMainTab == 1 ? 4 : 2);
+                int actionsWidth = actionsCount * 28 + 4;
 
-            int curY = 108;
+                if (lblAppHeader != null)
+                {
+                    lblAppHeader.Visible = false;
+                }
+
+                // Системные кнопки в pnlTopBar:
+                if (btnClose != null)
+                {
+                    btnClose.Visible = true;
+                    btnClose.Size = new Size(26, 24);
+                    btnClose.Location = new Point(sysBtnsWidth - 30, 6);
+                    btnClose.BringToFront();
+                }
+                if (btnPinWindow != null)
+                {
+                    btnPinWindow.Visible = true;
+                    btnPinWindow.Size = new Size(22, 22);
+                    btnPinWindow.Location = new Point(sysBtnsWidth - 54, 7);
+                    btnPinWindow.BringToFront();
+                }
+                if (btnClickAction != null)
+                {
+                    btnClickAction.Visible = true;
+                    btnClickAction.Size = new Size(22, 22);
+                    btnClickAction.Location = new Point(sysBtnsWidth - 78, 7);
+                    btnClickAction.BringToFront();
+                }
+                if (btnOpenSettings != null)
+                {
+                    btnOpenSettings.Visible = true;
+                    btnOpenSettings.Size = new Size(22, 22);
+                    btnOpenSettings.Location = new Point(sysBtnsWidth - 102, 7);
+                    btnOpenSettings.BringToFront();
+                }
+
+                // Обычный горизонтальный док (BottomCenter / TopCenter)
+                pnlTopBar.Location = new Point(w - sysBtnsWidth, 0);
+                pnlTopBar.Size = new Size(sysBtnsWidth, 36);
+                pnlTopBar.BackColor = Color.Transparent;
+                pnlTopBar.BringToFront();
+
+                if (pnlSubBar != null)
+                {
+                    pnlSubBar.BackColor = Color.Transparent;
+                    pnlSubBar.Location = new Point(w - sysBtnsWidth - actionsWidth, 0);
+                    pnlSubBar.Size = new Size(actionsWidth, 36);
+                    pnlSubBar.BringToFront();
+                    UpdateSubBarLayout();
+                }
+
+                int leftMargin = 10;
+                int filterTabsWidth = Math.Max(120, w - sysBtnsWidth - actionsWidth - leftMargin - 6);
+
+                if (pnlMainTabs != null)
+                {
+                    pnlMainTabs.BackColor = Color.Transparent;
+                    pnlMainTabs.Location = new Point(leftMargin, 0);
+                    pnlMainTabs.Size = new Size(filterTabsWidth, 36);
+                    pnlMainTabs.BringToFront();
+                    if (pnlSubTabsClip != null)
+                    {
+                        pnlSubTabsClip.Location = new Point(0, 0);
+                        pnlSubTabsClip.Size = new Size(pnlMainTabs.Width, 36);
+                    }
+                    if (btnMainClipboard != null) btnMainClipboard.Visible = false;
+                    if (btnMainSuperHub != null) btnMainSuperHub.Visible = false;
+                }
+
+                curY = headerY + 38;
+            }
+            else
+            {
+                // Обычный вертикальный системный режим Win+V
+                pnlTopBar.Location = new Point(0, 0);
+                pnlTopBar.Size = new Size(w, 32);
+                pnlTopBar.BackColor = Color.Transparent;
+
+                if (btnOpenSettings != null)
+                {
+                    btnOpenSettings.Size = new Size(22, 22);
+                    btnOpenSettings.Location = new Point(12, 5);
+                }
+                if (btnClickAction != null)
+                {
+                    btnClickAction.Visible = true;
+                    btnClickAction.Size = new Size(22, 22);
+                    btnClickAction.Location = new Point(w - 84, 5);
+                }
+                if (btnPinWindow != null)
+                {
+                    btnPinWindow.Size = new Size(22, 22);
+                    btnPinWindow.Location = new Point(w - 60, 5);
+                }
+                if (btnMinimize != null)
+                {
+                    btnMinimize.Visible = false;
+                }
+                if (lblAppHeader != null)
+                {
+                    lblAppHeader.Text = (currentMainTab == 1) ? "SuperHub" : "Буфер обмена";
+                    lblAppHeader.Visible = true;
+                    lblAppHeader.Location = new Point(86, 4);
+                    lblAppHeader.Size = new Size(Math.Max(80, w - 172), 24);
+                }
+                if (btnClose != null)
+                {
+                    btnClose.Size = new Size(26, 24);
+                    btnClose.Location = new Point(w - 34, 4);
+                }
+
+                // 2. Панель плоских иконок категорий (как в Win+V Windows 11) - 40px
+                if (pnlMainTabs != null)
+                {
+                    pnlMainTabs.BackColor = Color.Transparent;
+                    pnlMainTabs.Location = new Point(0, 32);
+                    pnlMainTabs.Size = new Size(w, 40);
+                    if (pnlSubTabsClip != null)
+                    {
+                        pnlSubTabsClip.Location = new Point(4, 2);
+                        pnlSubTabsClip.Size = new Size(Math.Max(100, w - 8), 36);
+                    }
+                    if (btnMainClipboard != null) btnMainClipboard.Visible = false;
+                    if (btnMainSuperHub != null) btnMainSuperHub.Visible = false;
+                }
+
+                // 3. Строка названия фильтра и иконочных кнопок действий (SubBar) - 36px
+                if (pnlSubBar != null)
+                {
+                    pnlSubBar.BackColor = Color.Transparent;
+                    pnlSubBar.Location = new Point(0, 72);
+                    pnlSubBar.Size = new Size(w, 36);
+                    UpdateSubBarLayout();
+                }
+
+                curY = 108;
+            }
 
             // Панель папок SuperHub
             if (pnlFolders != null)
@@ -1172,51 +1952,52 @@ namespace PasteImageAsFile
             int contentTop = curY;
             if (pnlViewport != null)
             {
+                if (btnDomePrev != null) btnDomePrev.Visible = false;
+                if (btnDomeNext != null) btnDomeNext.Visible = false;
                 pnlViewport.Location = new Point(0, contentTop);
                 pnlViewport.Size = new Size(w, Math.Max(50, h - contentTop - 4));
-                int cardMargin = 14;
-                int cardW = Math.Max(100, pnlViewport.ClientSize.Width - cardMargin * 2);
 
-                Action<Panel> updateContainerLayout = (pnl) => {
-                    if (pnl == null) return;
-                    pnl.Location = new Point(cardMargin, pnl.Top);
-                    pnl.Width = cardW;
-                    foreach (Control c in pnl.Controls)
-                    {
-                        if (!(c is Panel)) continue;
-                        c.Width = cardW;
-
-                        foreach (Control sub in c.Controls)
-                        {
-                            if (sub is Button)
-                            {
-                                string tag = sub.Tag != null ? sub.Tag.ToString() : "";
-                                if (tag == "btn_more") { sub.Left = cardW - 32; sub.Top = 6; }
-                                else if (tag == "btn_pin") { sub.Left = cardW - 32; sub.Top = c.Height - 28; }
-                                else if (tag == "c1_r1") { sub.Left = cardW - 54; sub.Top = 11; }
-                                else if (tag == "c2_r1") { sub.Left = cardW - 27; sub.Top = 11; }
-                                else if (tag == "c1_r2") { sub.Left = cardW - 54; sub.Top = 38; }
-                                else if (tag == "c2_r2") { sub.Left = cardW - 27; sub.Top = 38; }
-                            }
-                            else if (sub is Panel && sub.Tag != null && sub.Tag.ToString() == "img_preview")
-                            {
-                                sub.Width = Math.Max(60, cardW - 50);
-                            }
-                            else if (sub is Label)
-                            {
-                                sub.Width = Math.Max(30, cardW - sub.Left - 38);
-                            }
-                        }
-                    }
-                };
-
-                if (cardW != lastLayoutCardWidth)
+                if (IsHorizontalDockMode)
                 {
-                    lastLayoutCardWidth = cardW;
-                    updateContainerLayout(cardsContainerClipboard);
-                    updateContainerLayout(cardsContainerSuperHub);
+                    ApplyFilterToContainer(cardsContainerClipboard, false);
+                    ApplyFilterToContainer(cardsContainerSuperHub, true);
+                }
+                else
+                {
+                    int cardMargin = 14;
+                    int cardW = Math.Max(100, pnlViewport.ClientSize.Width - cardMargin * 2);
+
+                    Action<Panel> updateContainerLayout = (pnl) => {
+                        if (pnl == null) return;
+                        pnl.Location = new Point(cardMargin, pnl.Top);
+                        pnl.Width = cardW;
+                        foreach (Control c in pnl.Controls)
+                        {
+                            if (!(c is Panel)) continue;
+                            LayoutCardInternalControls(c, cardW, c.Height, false);
+                            c.Invalidate(true);
+                        }
+                        pnl.Invalidate(true);
+                    };
+
+                    if (cardW != lastLayoutCardWidth)
+                    {
+                        lastLayoutCardWidth = cardW;
+                        updateContainerLayout(cardsContainerClipboard);
+                        updateContainerLayout(cardsContainerSuperHub);
+                        pnlViewport.Invalidate(true);
+                    }
                 }
                 UpdateContainerScroll();
+            }
+
+            if (IsCornerDockMode)
+            {
+                UpdateCornerRegion();
+            }
+            else
+            {
+                this.Region = null;
             }
 
             this.ResumeLayout(true);
@@ -1407,7 +2188,7 @@ namespace PasteImageAsFile
             {
                 Location = new Point(0, 0),
                 Size = new Size(this.Width, 32),
-                BackColor = ThemeHelper.HeaderBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.SizeAll
             };
             pnlTopBar.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) DragWindow(); };
@@ -1434,7 +2215,7 @@ namespace PasteImageAsFile
                 Location = new Point(12, 5),
                 Size = new Size(22, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1445,18 +2226,19 @@ namespace PasteImageAsFile
             btnOpenSettings.MouseEnter += (s, e) => { isGearHover = true; btnOpenSettings.Invalidate(); };
             btnOpenSettings.MouseLeave += (s, e) => { isGearHover = false; btnOpenSettings.Invalidate(); };
             btnOpenSettings.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnOpenSettings, this, acrylicBackdrop);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnOpenSettings, this, acrylicBackdrop);
                 if (isGearHover)
                 {
                     Rectangle r = new Rectangle(0, 0, btnOpenSettings.Width - 1, btnOpenSettings.Height - 1);
                     using (var path = CreateRoundedPath(r, 4))
                     using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
                     {
-                        e.Graphics.FillPath(b, path);
+                        g.FillPath(b, path);
                     }
                 }
-                DrawGearIcon(e.Graphics, new Rectangle(0, 0, btnOpenSettings.Width, btnOpenSettings.Height), isGearHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                DrawGearIcon(g, new Rectangle(0, 0, btnOpenSettings.Width, btnOpenSettings.Height), isGearHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
             };
             btnOpenSettings.Click += (s, e) => { Program.ShowMainForm(); };
             toolTip.SetToolTip(btnOpenSettings, "Открыть настройки программы");
@@ -1468,7 +2250,7 @@ namespace PasteImageAsFile
                 Location = new Point(38, 6),
                 Size = new Size(22, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1479,18 +2261,19 @@ namespace PasteImageAsFile
             btnPinWindow.MouseEnter += (s, e) => { isPinHover = true; btnPinWindow.Invalidate(); };
             btnPinWindow.MouseLeave += (s, e) => { isPinHover = false; btnPinWindow.Invalidate(); };
             btnPinWindow.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnPinWindow, this, acrylicBackdrop);
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnPinWindow, this, acrylicBackdrop);
                 if (isPinHover)
                 {
                     using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
                     using (var p = CreateRoundedPath(new Rectangle(0, 0, btnPinWindow.Width - 1, btnPinWindow.Height - 1), 4))
                     {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
+                        g.FillPath(b, p);
                     }
                 }
                 Color pinColor = isWindowPinned ? ThemeHelper.Accent : (isPinHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-                DrawWin11PinIcon(e.Graphics, new Rectangle(0, 0, btnPinWindow.Width, btnPinWindow.Height), pinColor, isWindowPinned);
+                DrawWin11PinIcon(g, new Rectangle(0, 0, btnPinWindow.Width, btnPinWindow.Height), pinColor, isWindowPinned);
             };
             btnPinWindow.Click += (s, e) => {
                 isWindowPinned = !isWindowPinned;
@@ -1506,7 +2289,7 @@ namespace PasteImageAsFile
                 Location = new Point(64, 6),
                 Size = new Size(22, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1517,21 +2300,22 @@ namespace PasteImageAsFile
             btnClickAction.MouseEnter += (s, e) => { isClickActionHover = true; btnClickAction.Invalidate(); };
             btnClickAction.MouseLeave += (s, e) => { isClickActionHover = false; btnClickAction.Invalidate(); };
             btnClickAction.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnClickAction, this, acrylicBackdrop);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnClickAction, this, acrylicBackdrop);
                 bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
                 if (isClickActionHover)
                 {
                     using (var b = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
                     using (var p = CreateRoundedPath(new Rectangle(0, 0, btnClickAction.Width - 1, btnClickAction.Height - 1), 4))
                     {
-                        e.Graphics.FillPath(b, p);
+                        g.FillPath(b, p);
                     }
                 }
-                Rectangle iconRect = new Rectangle(2, 2, 18, 18);
+                Rectangle iconRect = new Rectangle(2, 2, btnClickAction.Width - 4, btnClickAction.Height - 4);
                 Color icCol = isClickActionHover ? ThemeHelper.TextPrimary : (isPaste ? ThemeHelper.Accent : ThemeHelper.TextSecondary);
-                if (isPaste) DrawPasteActionIcon(e.Graphics, iconRect, icCol);
-                else DrawCopyIcon(e.Graphics, iconRect, icCol);
+                if (isPaste) DrawPasteActionIcon(g, iconRect, icCol);
+                else DrawCopyIcon(g, iconRect, icCol);
             };
             btnClickAction.Click += (s, e) => {
                 bool isPaste = string.Equals(Config.ClipboardClickAction, "Paste", StringComparison.OrdinalIgnoreCase);
@@ -1564,7 +2348,7 @@ namespace PasteImageAsFile
                 Location = new Point(this.Width - 34, 4),
                 Size = new Size(26, 24),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.HeaderBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1575,17 +2359,18 @@ namespace PasteImageAsFile
             btnClose.MouseEnter += (s, e) => { isCloseHover = true; btnClose.Invalidate(); };
             btnClose.MouseLeave += (s, e) => { isCloseHover = false; btnClose.Invalidate(); };
             btnClose.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnClose, this, acrylicBackdrop);
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnClose, this, acrylicBackdrop);
                 if (isCloseHover)
                 {
                     using (var b = new SolidBrush(Color.FromArgb(196, 43, 28)))
                     using (var p = CreateRoundedPath(new Rectangle(0, 0, btnClose.Width - 1, btnClose.Height - 1), 4))
                     {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
+                        g.FillPath(b, p);
                     }
                 }
-                DrawCloseIcon(e.Graphics, new Rectangle(0, 0, btnClose.Width, btnClose.Height), isCloseHover ? Color.White : ThemeHelper.TextSecondary);
+                DrawCloseIcon(g, new Rectangle(0, 0, btnClose.Width, btnClose.Height), isCloseHover ? Color.White : ThemeHelper.TextSecondary);
             };
             btnClose.Click += (s, e) => CloseFlyout();
             toolTip.SetToolTip(btnClose, "Закрыть (Esc)");
@@ -1598,15 +2383,162 @@ namespace PasteImageAsFile
             {
                 Location = new Point(0, 32),
                 Size = new Size(this.Width, 40),
-                BackColor = ThemeHelper.HeaderBackground,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.SizeAll
             };
             pnlMainTabs.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) DragWindow(); };
 
-            btnMainClipboard = new Button { Visible = false };
-            btnMainSuperHub = new Button { Visible = false };
-            pnlMainTabs.Controls.Add(btnMainClipboard);
-            pnlMainTabs.Controls.Add(btnMainSuperHub);
+            btnMainClipboard = new Button
+            {
+                Visible = false,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            btnMainClipboard.FlatAppearance.BorderSize = 0;
+            btnMainClipboard.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnMainClipboard.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isClipHover = false;
+            btnMainClipboard.MouseEnter += (s, e) => { isClipHover = true; btnMainClipboard.Invalidate(); };
+            btnMainClipboard.MouseLeave += (s, e) => { isClipHover = false; btnMainClipboard.Invalidate(); };
+            btnMainClipboard.Click += (s, e) => SwitchMainTab(0);
+            btnMainClipboard.Paint += (s, e) => {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                bool isActive = (currentMainTab == 0);
+                Rectangle r = new Rectangle(0, 0, btnMainClipboard.Width, btnMainClipboard.Height);
+                if (IsCornerDockMode)
+                {
+                    Color bgCol = isActive 
+                        ? ThemeHelper.Accent
+                        : (isClipHover ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(24, 255, 255, 255));
+                    Color borderCol = isActive
+                        ? Color.FromArgb(160, 255, 255, 255)
+                        : (isClipHover ? Color.FromArgb(85, 255, 255, 255) : Color.FromArgb(38, 255, 255, 255));
+                    using (var path = CreateRoundedPath(new Rectangle(1, 1, r.Width - 2, r.Height - 2), r.Width / 2))
+                    using (var br = new SolidBrush(bgCol))
+                    using (var pen = new Pen(borderCol, 1.2f))
+                    {
+                        g.FillPath(br, path);
+                        g.DrawPath(pen, path);
+                    }
+                    Color contentCol = isActive ? Color.White : (isClipHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                    int iconSize = 15;
+                    int iconX = (r.Width - iconSize) / 2;
+                    int iconY = (r.Height - iconSize) / 2;
+                    DrawCategoryFlatIcon(g, new Rectangle(iconX, iconY, iconSize, iconSize), 0, contentCol, false);
+                    return;
+                }
+                Color normBg = isActive 
+                    ? Color.FromArgb(220, ThemeHelper.Accent.R, ThemeHelper.Accent.G, ThemeHelper.Accent.B)
+                    : (isClipHover ? Color.FromArgb(48, 255, 255, 255) : Color.FromArgb(20, 255, 255, 255));
+                Color normBorder = isActive
+                    ? Color.FromArgb(100, 255, 255, 255)
+                    : (isClipHover ? Color.FromArgb(64, 255, 255, 255) : Color.FromArgb(32, 255, 255, 255));
+                using (var path = CreateRoundedPath(new Rectangle(1, 1, r.Width - 2, r.Height - 2), 6))
+                using (var br = new SolidBrush(normBg))
+                using (var pen = new Pen(normBorder, 1f))
+                {
+                    g.FillPath(br, path);
+                    g.DrawPath(pen, path);
+                }
+                Color normContent = isActive ? Color.White : (isClipHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                int normIconSize = 13;
+                int normIconX = 7;
+                int normIconY = (r.Height - normIconSize) / 2;
+                DrawCategoryFlatIcon(g, new Rectangle(normIconX, normIconY, normIconSize, normIconSize), 0, normContent, false);
+
+                using (var f = new Font("Segoe UI Semibold", 8.25f))
+                using (var b = new SolidBrush(normContent))
+                {
+                    var sf = new StringFormat
+                    {
+                        Alignment = StringAlignment.Near,
+                        LineAlignment = StringAlignment.Center,
+                        FormatFlags = StringFormatFlags.NoWrap
+                    };
+                    g.DrawString("Буфер", f, b, new RectangleF(normIconX + normIconSize + 4, 0, r.Width - (normIconX + normIconSize + 4), r.Height), sf);
+                }
+            };
+            toolTip.SetToolTip(btnMainClipboard, "Буфер обмена (Win+V)");
+            this.Controls.Add(btnMainClipboard);
+
+            btnMainSuperHub = new Button
+            {
+                Visible = false,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            btnMainSuperHub.FlatAppearance.BorderSize = 0;
+            btnMainSuperHub.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnMainSuperHub.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isHubHover = false;
+            btnMainSuperHub.MouseEnter += (s, e) => { isHubHover = true; btnMainSuperHub.Invalidate(); };
+            btnMainSuperHub.MouseLeave += (s, e) => { isHubHover = false; btnMainSuperHub.Invalidate(); };
+            btnMainSuperHub.Click += (s, e) => SwitchMainTab(1);
+            btnMainSuperHub.Paint += (s, e) => {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                bool isActive = (currentMainTab == 1);
+                Rectangle r = new Rectangle(0, 0, btnMainSuperHub.Width, btnMainSuperHub.Height);
+                if (IsCornerDockMode)
+                {
+                    Color bgCol = isActive 
+                        ? ThemeHelper.SuperHubSecondaryAccent
+                        : (isHubHover ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(24, 255, 255, 255));
+                    Color borderCol = isActive
+                        ? Color.FromArgb(160, 255, 255, 255)
+                        : (isHubHover ? Color.FromArgb(85, 255, 255, 255) : Color.FromArgb(38, 255, 255, 255));
+                    using (var path = CreateRoundedPath(new Rectangle(1, 1, r.Width - 2, r.Height - 2), r.Width / 2))
+                    using (var br = new SolidBrush(bgCol))
+                    using (var pen = new Pen(borderCol, 1.2f))
+                    {
+                        g.FillPath(br, path);
+                        g.DrawPath(pen, path);
+                    }
+                    Color contentCol = isActive ? Color.White : (isHubHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                    int iconSize = 15;
+                    int iconX = (r.Width - iconSize) / 2;
+                    int iconY = (r.Height - iconSize) / 2;
+                    DrawCategoryFlatIcon(g, new Rectangle(iconX, iconY, iconSize, iconSize), 0, contentCol, true);
+                    return;
+                }
+                Color normBg = isActive 
+                    ? Color.FromArgb(220, ThemeHelper.SuperHubSecondaryAccent.R, ThemeHelper.SuperHubSecondaryAccent.G, ThemeHelper.SuperHubSecondaryAccent.B)
+                    : (isHubHover ? Color.FromArgb(48, 255, 255, 255) : Color.FromArgb(20, 255, 255, 255));
+                Color normBorder = isActive
+                    ? Color.FromArgb(100, 255, 255, 255)
+                    : (isHubHover ? Color.FromArgb(64, 255, 255, 255) : Color.FromArgb(32, 255, 255, 255));
+                using (var path = CreateRoundedPath(new Rectangle(1, 1, r.Width - 2, r.Height - 2), 6))
+                using (var br = new SolidBrush(normBg))
+                using (var pen = new Pen(normBorder, 1f))
+                {
+                    g.FillPath(br, path);
+                    g.DrawPath(pen, path);
+                }
+                Color normContent = isActive ? Color.White : (isHubHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                int normIconSize = 13;
+                int normIconX = 7;
+                int normIconY = (r.Height - normIconSize) / 2;
+                DrawCategoryFlatIcon(g, new Rectangle(normIconX, normIconY, normIconSize, normIconSize), 0, normContent, true);
+
+                using (var f = new Font("Segoe UI Semibold", 8f))
+                using (var b = new SolidBrush(normContent))
+                {
+                    var sf = new StringFormat
+                    {
+                        Alignment = StringAlignment.Near,
+                        LineAlignment = StringAlignment.Center,
+                        FormatFlags = StringFormatFlags.NoWrap
+                    };
+                    g.DrawString("SuperHub", f, b, new RectangleF(normIconX + normIconSize + 4, 0, r.Width - (normIconX + normIconSize + 4), r.Height), sf);
+                }
+            };
+            toolTip.SetToolTip(btnMainSuperHub, "Полка SuperHub (Ctrl+Alt+C)");
+            this.Controls.Add(btnMainSuperHub);
 
             pnlSubTabsClip = new AcrylicPanel
             {
@@ -1636,7 +2568,7 @@ namespace PasteImageAsFile
                     BackColor = Color.Transparent,
                     Cursor = Cursors.Hand,
                     TabStop = false,
-                    Margin = (btnIdx == 0) ? new Padding(1, 0, 5, 0) : new Padding(1, 0, 1, 0)
+                    Margin = (btnIdx == 0) ? new Padding(1, 0, 5, 0) : (btnIdx == 1 ? new Padding(5, 0, 1, 0) : new Padding(1, 0, 1, 0))
                 };
                 btnFilter.FlatAppearance.BorderSize = 0;
                 btnFilter.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -1651,11 +2583,10 @@ namespace PasteImageAsFile
 
                     bool isModeToggle = (btnIdx == 0);
                     int filterIdx = btnIdx - 1; // 0..6 для кнопок фильтров (btnIdx 1..7)
-                    bool isActive = isModeToggle
-                        ? true
-                        : (currentFilterIndex == filterIdx);
+                    bool isActive = isModeToggle ? true : (currentFilterIndex == filterIdx);
 
-                    if (isFltHover || isActive)
+                    // Фон при ховере или для активного переключателя режима (btnIdx == 0)
+                    if (isFltHover || isModeToggle)
                     {
                         Rectangle rHover = new Rectangle(1, 2, btnFilter.Width - 3, btnFilter.Height - 7);
                         using (var path = CreateRoundedPath(rHover, 5))
@@ -1671,6 +2602,7 @@ namespace PasteImageAsFile
                             ? ThemeHelper.TextPrimary
                             : (isFltHover ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary));
 
+                    int yOffset = isModeToggle ? 4 : 0;
                     if (btnIdx == 1) // Фильтр "Все" (filterIdx == 0)
                     {
                         using (var f = new Font("Segoe UI Semibold", 8.75f))
@@ -1681,18 +2613,19 @@ namespace PasteImageAsFile
                                 Alignment = StringAlignment.Center,
                                 LineAlignment = StringAlignment.Center
                             };
-                            g.DrawString("Все", f, b, new RectangleF(0, 0, btnFilter.Width, btnFilter.Height - 4), sf);
+                            g.DrawString("Все", f, b, new RectangleF(0, 0, btnFilter.Width, btnFilter.Height), sf);
                         }
                     }
                     else
                     {
-                        DrawCategoryFlatIcon(g, new Rectangle(0, 0, btnFilter.Width, btnFilter.Height - 4), btnIdx, iconCol, currentMainTab == 1);
+                        DrawCategoryFlatIcon(g, new Rectangle(0, 0, btnFilter.Width, btnFilter.Height - yOffset), btnIdx, iconCol, currentMainTab == 1);
                     }
 
-                    // Короткая капсула-индикатор под переключателем режима и под активным фильтром
-                    if (isActive)
+                    // Акцентная полоска-индикатор Windows 11 Fluent:
+                    // На референсе полоска отображается только под кнопкой текущего режима (btnIdx == 0: Буфер обмена / SuperHub)
+                    if (isModeToggle)
                     {
-                        int pillW = (btnIdx == 1) ? 20 : 16;
+                        int pillW = 16;
                         int pillH = 3;
                         int pillX = (btnFilter.Width - pillW) / 2;
                         int pillY = btnFilter.Height - 4;
@@ -1733,10 +2666,13 @@ namespace PasteImageAsFile
             flpSubTabs.Paint += (s, e) => {
                 if (filterButtons.Count > 1)
                 {
-                    int sepX = filterButtons[0].Right + 2;
-                    using (var sepPen = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
+                    Control b0 = filterButtons[0];
+                    Control b1 = filterButtons[1];
+                    int divX = (b0.Right + b1.Left) / 2;
+                    int divY = (flpSubTabs.Height - 16) / 2;
+                    using (var p = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
                     {
-                        e.Graphics.DrawLine(sepPen, sepX, 8, sepX, 24);
+                        e.Graphics.DrawLine(p, divX, divY, divX, divY + 16);
                     }
                 }
             };
@@ -1758,7 +2694,7 @@ namespace PasteImageAsFile
             {
                 Location = new Point(0, 72),
                 Size = new Size(this.Width, 36),
-                BackColor = ThemeHelper.Background
+                BackColor = Color.Transparent
             };
 
             lblSectionTitle = new Label
@@ -1781,7 +2717,7 @@ namespace PasteImageAsFile
                 Location = new Point(this.Width - 134, 5),
                 Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Background,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1792,8 +2728,9 @@ namespace PasteImageAsFile
             btnDragMode.MouseEnter += (s, e) => { isDragModeHover = true; btnDragMode.Invalidate(); };
             btnDragMode.MouseLeave += (s, e) => { isDragModeHover = false; btnDragMode.Invalidate(); };
             btnDragMode.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnDragMode, this, acrylicBackdrop);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnDragMode, this, acrylicBackdrop);
                 bool isLink = string.Equals(Config.SuperHubDragMode, "Link", StringComparison.OrdinalIgnoreCase);
                 bool isCopy = !isLink && string.Equals(Config.SuperHubDragMode, "Copy", StringComparison.OrdinalIgnoreCase);
                 Rectangle r = new Rectangle(0, 0, btnDragMode.Width - 1, btnDragMode.Height - 1);
@@ -1840,7 +2777,7 @@ namespace PasteImageAsFile
                 Location = new Point(this.Width - 104, 5),
                 Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Background,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1851,8 +2788,9 @@ namespace PasteImageAsFile
             btnAddNote.MouseEnter += (s, e) => { isAddNoteHover = true; btnAddNote.Invalidate(); };
             btnAddNote.MouseLeave += (s, e) => { isAddNoteHover = false; btnAddNote.Invalidate(); };
             btnAddNote.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnAddNote, this, acrylicBackdrop);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnAddNote, this, acrylicBackdrop);
                 Rectangle r = new Rectangle(0, 0, btnAddNote.Width - 1, btnAddNote.Height - 1);
                 using (var path = CreateRoundedPath(r, 4))
                 {
@@ -1878,7 +2816,7 @@ namespace PasteImageAsFile
                 Location = new Point(this.Width - 70, 5),
                 Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Background,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1889,8 +2827,9 @@ namespace PasteImageAsFile
             btnSearchToggle.MouseEnter += (s, e) => { isSearchHover = true; btnSearchToggle.Invalidate(); };
             btnSearchToggle.MouseLeave += (s, e) => { isSearchHover = false; btnSearchToggle.Invalidate(); };
             btnSearchToggle.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnSearchToggle, this, acrylicBackdrop);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnSearchToggle, this, acrylicBackdrop);
                 if (isSearchHover || isSearchOpen)
                 {
                     Rectangle r = new Rectangle(0, 0, btnSearchToggle.Width - 1, btnSearchToggle.Height - 1);
@@ -1922,7 +2861,7 @@ namespace PasteImageAsFile
                 Location = new Point(this.Width - 40, 5),
                 Size = new Size(26, 26),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Background,
+                BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
@@ -1933,8 +2872,9 @@ namespace PasteImageAsFile
             btnClearAll.MouseEnter += (s, e) => { isClearHover = true; btnClearAll.Invalidate(); };
             btnClearAll.MouseLeave += (s, e) => { isClearHover = false; btnClearAll.Invalidate(); };
             btnClearAll.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnClearAll, this, acrylicBackdrop);
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                ThemeHelper.DrawAcrylicBackground(g, btnClearAll, this, acrylicBackdrop);
                 Rectangle r = new Rectangle(0, 0, btnClearAll.Width - 1, btnClearAll.Height - 1);
                 if (isConfirmingClear || isClearHover)
                 {
@@ -2146,11 +3086,147 @@ namespace PasteImageAsFile
 
             this.Controls.Add(pnlViewport);
 
+            // Кнопки карусели для полукруглого углового режима
+            btnDomePrev = new Button
+            {
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                Visible = false,
+                Size = new Size(28, 28),
+                TabStop = false
+            };
+            btnDomePrev.FlatAppearance.BorderSize = 0;
+            btnDomePrev.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnDomePrev.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isDomePrevHover = false;
+            btnDomePrev.MouseEnter += (s, e) => { isDomePrevHover = true; btnDomePrev.Invalidate(); };
+            btnDomePrev.MouseLeave += (s, e) => { isDomePrevHover = false; btnDomePrev.Invalidate(); };
+            btnDomePrev.Paint += (s, e) => {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                bool enabled = btnDomePrev.Enabled;
+                Rectangle r = new Rectangle(0, 0, btnDomePrev.Width - 1, btnDomePrev.Height - 1);
+                Color bg = isDomePrevHover && enabled
+                    ? Color.FromArgb(70, 255, 255, 255)
+                    : (enabled ? Color.FromArgb(36, 255, 255, 255) : Color.FromArgb(14, 255, 255, 255));
+                using (var path = CreateRoundedPath(r, btnDomePrev.Width / 2))
+                using (var br = new SolidBrush(bg))
+                using (var pen = new Pen(Color.FromArgb(enabled ? 60 : 20, 255, 255, 255), 1f))
+                {
+                    g.FillPath(br, path);
+                    g.DrawPath(pen, path);
+                }
+                using (var p = new Pen(enabled ? (isDomePrevHover ? Color.White : Color.FromArgb(220, 220, 220)) : Color.FromArgb(90, 90, 90), 1.8f))
+                {
+                    p.StartCap = LineCap.Round;
+                    p.EndCap = LineCap.Round;
+                    float cx = btnDomePrev.Width / 2f;
+                    float cy = btnDomePrev.Height / 2f;
+                    g.DrawLine(p, cx + 2f, cy - 5f, cx - 3f, cy);
+                    g.DrawLine(p, cx - 3f, cy, cx + 2f, cy + 5f);
+                }
+            };
+            btnDomePrev.Click += (s, e) => {
+                if (IsCornerDockMode)
+                {
+                    ScrollCornerCards(-1);
+                    return;
+                }
+                int step = (pnlViewport != null ? Math.Max(180, pnlViewport.ClientSize.Width - 20) : 240);
+                SetScrollX(scrollX - step);
+            };
+            toolTip.SetToolTip(btnDomePrev, "Предыдущие карточки");
+            this.Controls.Add(btnDomePrev);
+
+            btnDomeNext = new Button
+            {
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                Visible = false,
+                Size = new Size(28, 28),
+                TabStop = false
+            };
+            btnDomeNext.FlatAppearance.BorderSize = 0;
+            btnDomeNext.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnDomeNext.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool isDomeNextHover = false;
+            btnDomeNext.MouseEnter += (s, e) => { isDomeNextHover = true; btnDomeNext.Invalidate(); };
+            btnDomeNext.MouseLeave += (s, e) => { isDomeNextHover = false; btnDomeNext.Invalidate(); };
+            btnDomeNext.Paint += (s, e) => {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                bool enabled = btnDomeNext.Enabled;
+                Rectangle r = new Rectangle(0, 0, btnDomeNext.Width - 1, btnDomeNext.Height - 1);
+                Color bg = isDomeNextHover && enabled
+                    ? Color.FromArgb(70, 255, 255, 255)
+                    : (enabled ? Color.FromArgb(36, 255, 255, 255) : Color.FromArgb(14, 255, 255, 255));
+                using (var path = CreateRoundedPath(r, btnDomeNext.Width / 2))
+                using (var br = new SolidBrush(bg))
+                using (var pen = new Pen(Color.FromArgb(enabled ? 60 : 20, 255, 255, 255), 1f))
+                {
+                    g.FillPath(br, path);
+                    g.DrawPath(pen, path);
+                }
+                using (var p = new Pen(enabled ? (isDomeNextHover ? Color.White : Color.FromArgb(220, 220, 220)) : Color.FromArgb(90, 90, 90), 1.8f))
+                {
+                    p.StartCap = LineCap.Round;
+                    p.EndCap = LineCap.Round;
+                    float cx = btnDomeNext.Width / 2f;
+                    float cy = btnDomeNext.Height / 2f;
+                    g.DrawLine(p, cx - 3f, cy - 5f, cx + 2f, cy);
+                    g.DrawLine(p, cx + 2f, cy, cx - 3f, cy + 5f);
+                }
+            };
+            btnDomeNext.Click += (s, e) => {
+                if (IsCornerDockMode)
+                {
+                    ScrollCornerCards(1);
+                    return;
+                }
+                int step = (pnlViewport != null ? Math.Max(180, pnlViewport.ClientSize.Width - 20) : 240);
+                SetScrollX(scrollX + step);
+            };
+            toolTip.SetToolTip(btnDomeNext, "Следующие карточки");
+            this.Controls.Add(btnDomeNext);
+
+            pnlCornerEmpty = new CornerEmptyCardPanel
+            {
+                Visible = false,
+                Size = new Size(250, 112)
+            };
+            this.Controls.Add(pnlCornerEmpty);
+
+            this.MouseWheel += OnViewportMouseWheel;
+
             // Внешняя тонкая рамка 1px вокруг формы (полупрозрачная стеклянная грань Win11)
             this.Paint += (s, e) => {
-                using (var pen = new Pen(Color.FromArgb(65, 255, 255, 255), 1))
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                if (IsCornerDockMode)
                 {
-                    e.Graphics.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
+                    int w = this.Width;
+                    int h = this.Height;
+                    float scale = Math.Max(0.85f, Math.Min(1.2f, (float)w / 440f));
+                    // Рисуем тонкие разделительные дуги строго посередине между ярусами
+                    using (var guidePen = new Pen(Color.FromArgb(16, 255, 255, 255), 1f))
+                    {
+                        guidePen.DashStyle = DashStyle.Dot;
+                        DrawCornerArc(e.Graphics, guidePen, w, h, dockPositionMode, 74f * scale);
+                        DrawCornerArc(e.Graphics, guidePen, w, h, dockPositionMode, 121f * scale);
+                        DrawCornerArc(e.Graphics, guidePen, w, h, dockPositionMode, 171f * scale);
+                        DrawCornerArc(e.Graphics, guidePen, w, h, dockPositionMode, 222f * scale);
+                        DrawCornerArc(e.Graphics, guidePen, w, h, dockPositionMode, 403f * scale);
+                    }
+                    using (var pen = new Pen(Color.FromArgb(70, 255, 255, 255), 1.2f))
+                    {
+                        DrawCornerArc(e.Graphics, pen, w, h, dockPositionMode, (float)w - 0.5f);
+                    }
+                }
+                else
+                {
+                    using (var pen = new Pen(Color.FromArgb(65, 255, 255, 255), 1.2f))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
+                    }
                 }
             };
 
@@ -2185,10 +3261,43 @@ namespace PasteImageAsFile
 
         private void OnViewportMouseWheel(object sender, MouseEventArgs e)
         {
-            if (maxScrollY <= 0) return;
-            int step = 50;
-            int delta = (e.Delta > 0) ? -step : step;
-            SetScrollY(scrollY + delta);
+            if (IsCornerDockMode)
+            {
+                int delta = (e.Delta > 0) ? -1 : 1;
+                ScrollCornerCards(delta);
+                return;
+            }
+            if (IsHorizontalDockMode)
+            {
+                if (maxScrollX <= 0) return;
+                int step = 60;
+                int delta = (e.Delta > 0) ? -step : step;
+                SetScrollX(scrollX + delta);
+            }
+            else
+            {
+                if (maxScrollY <= 0) return;
+                int step = 50;
+                int delta = (e.Delta > 0) ? -step : step;
+                SetScrollY(scrollY + delta);
+            }
+        }
+
+        private void SetScrollX(int newX)
+        {
+            if (newX < 0) newX = 0;
+            if (newX > maxScrollX) newX = maxScrollX;
+            if (newX != scrollX)
+            {
+                scrollX = newX;
+                if (cardsContainer != null)
+                {
+                    int padLeft = IsCornerDockMode ? 4 : 12;
+                    cardsContainer.Left = padLeft - scrollX;
+                    cardsContainer.Invalidate(true);
+                }
+                if (pnlViewport != null) pnlViewport.Invalidate();
+            }
         }
 
         private void SetScrollY(int newY)
@@ -2198,35 +3307,60 @@ namespace PasteImageAsFile
             if (newY != scrollY)
             {
                 scrollY = newY;
-                cardsContainer.Top = -scrollY;
-                cardsContainer.Invalidate(true);
-                pnlViewport.Invalidate();
+                if (cardsContainer != null)
+                {
+                    cardsContainer.Top = -scrollY;
+                    cardsContainer.Invalidate(true);
+                }
+                if (pnlViewport != null) pnlViewport.Invalidate();
             }
         }
 
         private Rectangle GetScrollbarThumbRect()
         {
-            if (maxScrollY <= 0) return Rectangle.Empty;
+            if (IsHorizontalDockMode)
+            {
+                if (maxScrollX <= 0) return Rectangle.Empty;
 
-            int trackTop = 6;
-            int trackBottom = pnlViewport.Height - 14;
-            int trackHeight = trackBottom - trackTop;
-            if (trackHeight <= 20) return Rectangle.Empty;
+                int trackLeft = 14;
+                int trackRight = pnlViewport.Width - 14;
+                int trackWidth = trackRight - trackLeft;
+                if (trackWidth <= 20) return Rectangle.Empty;
 
-            int totalContentHeight = cardsContainer.Height;
-            int thumbHeight = Math.Max(28, (int)((float)pnlViewport.Height / totalContentHeight * trackHeight));
-            int availableMove = trackHeight - thumbHeight;
+                int totalContentWidth = Math.Max(1, cardsContainer != null ? cardsContainer.Width : pnlViewport.Width);
+                int thumbWidth = Math.Max(28, (int)((float)pnlViewport.Width / totalContentWidth * trackWidth));
+                int availableMove = trackWidth - thumbWidth;
 
-            int thumbY = trackTop + (int)((float)scrollY / maxScrollY * availableMove);
-            int thumbW = isHoveringScroll || isDraggingScroll ? 6 : 4;
-            int thumbX = pnlViewport.Width - thumbW - 3;
+                int thumbX = trackLeft + (int)((float)scrollX / maxScrollX * availableMove);
+                int thumbH = isHoveringScroll || isDraggingScroll ? 6 : 4;
+                int thumbY = pnlViewport.Height - thumbH - 2;
 
-            return new Rectangle(thumbX, thumbY, thumbW, thumbHeight);
+                return new Rectangle(thumbX, thumbY, thumbWidth, thumbH);
+            }
+            else
+            {
+                if (maxScrollY <= 0) return Rectangle.Empty;
+
+                int trackTop = 6;
+                int trackBottom = pnlViewport.Height - 14;
+                int trackHeight = trackBottom - trackTop;
+                if (trackHeight <= 20) return Rectangle.Empty;
+
+                int totalContentHeight = Math.Max(1, cardsContainer != null ? cardsContainer.Height : pnlViewport.Height);
+                int thumbHeight = Math.Max(28, (int)((float)pnlViewport.Height / totalContentHeight * trackHeight));
+                int availableMove = trackHeight - thumbHeight;
+
+                int thumbY = trackTop + (int)((float)scrollY / maxScrollY * availableMove);
+                int thumbW = isHoveringScroll || isDraggingScroll ? 6 : 4;
+                int thumbX = pnlViewport.Width - thumbW - 3;
+
+                return new Rectangle(thumbX, thumbY, thumbW, thumbHeight);
+            }
         }
 
         private void RenderFluentScrollbar(object sender, PaintEventArgs e)
         {
-            if (maxScrollY <= 0) return;
+            if (IsHorizontalDockMode ? (maxScrollX <= 0) : (maxScrollY <= 0)) return;
 
             Rectangle thumb = GetScrollbarThumbRect();
             if (thumb.IsEmpty) return;
@@ -2245,44 +3379,94 @@ namespace PasteImageAsFile
 
         private void OnScrollbarMouseMove(object sender, MouseEventArgs e)
         {
-            if (maxScrollY <= 0) return;
-
-            if (isDraggingScroll)
+            if (IsHorizontalDockMode)
             {
-                int trackHeight = pnlViewport.Height - 20;
-                Rectangle thumb = GetScrollbarThumbRect();
-                int availableMove = Math.Max(1, trackHeight - thumb.Height);
+                if (maxScrollX <= 0) return;
 
-                int deltaMouse = e.Y - dragStartMouseY;
-                int deltaScroll = (int)((float)deltaMouse / availableMove * maxScrollY);
-                SetScrollY(dragStartScrollY + deltaScroll);
-                return;
+                if (isDraggingScroll)
+                {
+                    int trackLeft = 14;
+                    int trackWidth = (pnlViewport.Width - 14) - trackLeft;
+                    Rectangle thumb = GetScrollbarThumbRect();
+                    int availableMove = Math.Max(1, trackWidth - thumb.Width);
+
+                    int deltaMouse = e.X - dragStartMouseX;
+                    int deltaScroll = (int)((float)deltaMouse / availableMove * maxScrollX);
+                    SetScrollX(dragStartScrollX + deltaScroll);
+                    return;
+                }
+
+                Rectangle scrollArea = new Rectangle(0, pnlViewport.Height - 12, pnlViewport.Width, 12);
+                bool hover = scrollArea.Contains(e.Location);
+                if (hover != isHoveringScroll)
+                {
+                    isHoveringScroll = hover;
+                    pnlViewport.Invalidate();
+                }
             }
-
-            Rectangle scrollArea = new Rectangle(pnlViewport.Width - 12, 0, 12, pnlViewport.Height);
-            bool hover = scrollArea.Contains(e.Location);
-            if (hover != isHoveringScroll)
+            else
             {
-                isHoveringScroll = hover;
-                pnlViewport.Invalidate();
+                if (maxScrollY <= 0) return;
+
+                if (isDraggingScroll)
+                {
+                    int trackHeight = pnlViewport.Height - 20;
+                    Rectangle thumb = GetScrollbarThumbRect();
+                    int availableMove = Math.Max(1, trackHeight - thumb.Height);
+
+                    int deltaMouse = e.Y - dragStartMouseY;
+                    int deltaScroll = (int)((float)deltaMouse / availableMove * maxScrollY);
+                    SetScrollY(dragStartScrollY + deltaScroll);
+                    return;
+                }
+
+                Rectangle scrollArea = new Rectangle(pnlViewport.Width - 12, 0, 12, pnlViewport.Height);
+                bool hover = scrollArea.Contains(e.Location);
+                if (hover != isHoveringScroll)
+                {
+                    isHoveringScroll = hover;
+                    pnlViewport.Invalidate();
+                }
             }
         }
 
         private void OnScrollbarMouseDown(object sender, MouseEventArgs e)
         {
-            if (maxScrollY <= 0 || e.Button != MouseButtons.Left) return;
+            if (e.Button != MouseButtons.Left) return;
 
-            Rectangle thumb = GetScrollbarThumbRect();
-            if (thumb.Contains(e.Location))
+            if (IsHorizontalDockMode)
             {
-                isDraggingScroll = true;
-                dragStartMouseY = e.Y;
-                dragStartScrollY = scrollY;
+                if (maxScrollX <= 0) return;
+
+                Rectangle thumb = GetScrollbarThumbRect();
+                if (thumb.Contains(e.Location))
+                {
+                    isDraggingScroll = true;
+                    dragStartMouseX = e.X;
+                    dragStartScrollX = scrollX;
+                }
+                else if (e.Y >= pnlViewport.Height - 12)
+                {
+                    if (e.X < thumb.X) SetScrollX(scrollX - pnlViewport.Width / 2);
+                    else SetScrollX(scrollX + pnlViewport.Width / 2);
+                }
             }
-            else if (e.X >= pnlViewport.Width - 12)
+            else
             {
-                if (e.Y < thumb.Y) SetScrollY(scrollY - pnlViewport.Height / 2);
-                else SetScrollY(scrollY + pnlViewport.Height / 2);
+                if (maxScrollY <= 0) return;
+
+                Rectangle thumb = GetScrollbarThumbRect();
+                if (thumb.Contains(e.Location))
+                {
+                    isDraggingScroll = true;
+                    dragStartMouseY = e.Y;
+                    dragStartScrollY = scrollY;
+                }
+                else if (e.X >= pnlViewport.Width - 12)
+                {
+                    if (e.Y < thumb.Y) SetScrollY(scrollY - pnlViewport.Height / 2);
+                    else SetScrollY(scrollY + pnlViewport.Height / 2);
+                }
             }
         }
 
@@ -2449,6 +3633,7 @@ namespace PasteImageAsFile
         public void SwitchFilter(int filterIndex)
         {
             currentFilterIndex = filterIndex;
+            scrollX = 0;
             scrollY = 0;
             UpdateTabsVisual();
             ApplyFilterToAllContainers();
@@ -2467,15 +3652,357 @@ namespace PasteImageAsFile
             return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".bmp" || ext == ".webp";
         }
 
-        private void ApplyFilterToContainer(Panel container, bool isHub)
+        private void ScrollCornerCards(int delta)
+        {
+            Panel container = (currentMainTab == 1) ? cardsContainerSuperHub : cardsContainerClipboard;
+            if (container == null) return;
+
+            int totalMatching = 0;
+            string search = (txtSearch != null) ? txtSearch.Text.Trim() : null;
+
+            foreach (Control c in container.Controls)
+            {
+                ClipboardItem item = c.Tag as ClipboardItem;
+                if (item == null) continue;
+
+                bool matches = true;
+                if (currentFilterIndex == 1)
+                {
+                    if (item.Type != ClipboardItemType.Text || ClipboardHistoryManager.IsUrl(item.TextContent)) matches = false;
+                }
+                else if (currentFilterIndex == 2)
+                {
+                    bool isImg = (item.Type == ClipboardItemType.Image);
+                    if (!isImg && item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (IsImageFilePath(f)) { isImg = true; break; }
+                        }
+                    }
+                    if (!isImg) matches = false;
+                }
+                else if (currentFilterIndex == 3)
+                {
+                    if (item.Type != ClipboardItemType.Text || !ClipboardHistoryManager.IsUrl(item.TextContent)) matches = false;
+                }
+                else if (currentFilterIndex == 4)
+                {
+                    bool hasDir = false;
+                    if (item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (SafeDirectoryExists(f)) { hasDir = true; break; }
+                        }
+                    }
+                    if (!hasDir) matches = false;
+                }
+                else if (currentFilterIndex == 5)
+                {
+                    bool hasFile = false;
+                    if (item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (!string.IsNullOrEmpty(f) && !SafeDirectoryExists(f)) { hasFile = true; break; }
+                        }
+                    }
+                    if (!hasFile) matches = false;
+                }
+                else if (currentFilterIndex == 6)
+                {
+                    if (!item.IsPinned) matches = false;
+                }
+
+                if (matches && !string.IsNullOrEmpty(search))
+                {
+                    matches = false;
+                    if (item.TextContent != null && item.TextContent.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.SourceApp != null && item.SourceApp.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.ImagePath != null && item.ImagePath.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (f != null && f.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) { matches = true; break; }
+                        }
+                    }
+                }
+
+                if (matches) totalMatching++;
+            }
+
+            int maxIndex = Math.Max(0, totalMatching - 2);
+            int newIdx = arcScrollIndex + delta;
+            if (newIdx < 0) newIdx = 0;
+            if (newIdx > maxIndex) newIdx = maxIndex;
+
+            if (newIdx != arcScrollIndex)
+            {
+                arcScrollIndex = newIdx;
+                LayoutCornerCards(container, currentMainTab == 1);
+            }
+        }
+
+        private void LayoutCornerCards(Panel container, bool isHub)
         {
             if (container == null) return;
             container.SuspendLayout();
 
+            int w = this.ClientSize.Width;
+            int h = this.ClientSize.Height;
+
+            PointF origin;
+            float startAngle, sweepAngle, bisectorAngle;
+            GetCornerGeometry(w, h, dockPositionMode, out origin, out startAngle, out sweepAngle, out bisectorAngle);
+
             string search = (txtSearch != null) ? txtSearch.Text.Trim() : null;
 
+            Label emptyFilterLbl = null;
+            var matchingCards = new List<Control>();
+
+            foreach (Control c in container.Controls)
+            {
+                if (c is Label && string.Equals(c.Tag as string, "empty_filter_label", StringComparison.Ordinal))
+                {
+                    emptyFilterLbl = (Label)c;
+                    continue;
+                }
+
+                ClipboardItem item = c.Tag as ClipboardItem;
+                if (item == null) continue;
+
+                bool matches = true;
+                if (currentFilterIndex == 1) // Текст
+                {
+                    if (item.Type != ClipboardItemType.Text || ClipboardHistoryManager.IsUrl(item.TextContent)) matches = false;
+                }
+                else if (currentFilterIndex == 2) // Снимки
+                {
+                    bool isImg = (item.Type == ClipboardItemType.Image);
+                    if (!isImg && item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (IsImageFilePath(f)) { isImg = true; break; }
+                        }
+                    }
+                    if (!isImg) matches = false;
+                }
+                else if (currentFilterIndex == 3) // Ссылки
+                {
+                    if (item.Type != ClipboardItemType.Text || !ClipboardHistoryManager.IsUrl(item.TextContent)) matches = false;
+                }
+                else if (currentFilterIndex == 4) // Папки
+                {
+                    bool hasDir = false;
+                    if (item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (!string.IsNullOrEmpty(f) && string.IsNullOrEmpty(SafeGetExtension(f)) && SafeDirectoryExists(f)) { hasDir = true; break; }
+                        }
+                    }
+                    if (!hasDir) matches = false;
+                }
+                else if (currentFilterIndex == 5) // Файлы
+                {
+                    bool hasFile = false;
+                    if (item.Type == ClipboardItemType.Files && item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (!string.IsNullOrEmpty(f))
+                            {
+                                if (!string.IsNullOrEmpty(SafeGetExtension(f)) || !SafeDirectoryExists(f)) { hasFile = true; break; }
+                            }
+                        }
+                    }
+                    if (!hasFile) matches = false;
+                }
+                else if (currentFilterIndex == 6) // Закрепленные
+                {
+                    if (!item.IsPinned) matches = false;
+                }
+
+                if (matches && !string.IsNullOrEmpty(search))
+                {
+                    matches = false;
+                    if (item.TextContent != null && item.TextContent.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.SourceApp != null && item.SourceApp.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.ImagePath != null && item.ImagePath.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) matches = true;
+                    else if (item.FilePaths != null)
+                    {
+                        foreach (var f in item.FilePaths)
+                        {
+                            if (f != null && f.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) { matches = true; break; }
+                        }
+                    }
+                }
+
+                if (matches)
+                {
+                    matchingCards.Add(c);
+                }
+                else
+                {
+                    c.Visible = false;
+                }
+            }
+
+            int cardW = 154;
+            int cardH = 104;
+            float scale = Math.Max(0.85f, Math.Min(1.2f, (float)w / 440f));
+            float rCards = 312f * scale;
+
+            if (matchingCards.Count == 0)
+            {
+                if (emptyFilterLbl != null) emptyFilterLbl.Visible = false;
+
+                if (pnlCornerEmpty != null)
+                {
+                    pnlCornerEmpty.IsHubMode = isHub;
+                    if (!string.IsNullOrEmpty(search))
+                    {
+                        pnlCornerEmpty.MainTitle = "Ничего не найдено";
+                        pnlCornerEmpty.SubTitle = "Попробуйте изменить поисковый запрос";
+                    }
+                    else if (currentFilterIndex != 0)
+                    {
+                        pnlCornerEmpty.MainTitle = "В этой категории пусто";
+                        pnlCornerEmpty.SubTitle = "Нет подходящих элементов в фильтре";
+                    }
+                    else if (isHub)
+                    {
+                        pnlCornerEmpty.MainTitle = "Полка SuperHub пуста";
+                        pnlCornerEmpty.SubTitle = "Перетащите сюда файлы или нажмите Ctrl+Alt+C";
+                    }
+                    else
+                    {
+                        pnlCornerEmpty.MainTitle = "Буфер обмена пуст";
+                        pnlCornerEmpty.SubTitle = "Скопируйте текст или файл (Ctrl+C)";
+                    }
+
+                    int emptyW = 250;
+                    int emptyH = 112;
+                    PointF ptEmpty = GetPolarPoint(origin, rCards, bisectorAngle);
+                    pnlCornerEmpty.Size = new Size(emptyW, emptyH);
+                    pnlCornerEmpty.Location = new Point((int)(ptEmpty.X - emptyW / 2), (int)(ptEmpty.Y - emptyH / 2));
+                    pnlCornerEmpty.Visible = true;
+                    pnlCornerEmpty.BringToFront();
+                    pnlCornerEmpty.Invalidate();
+                }
+
+                if (btnDomePrev != null) btnDomePrev.Visible = false;
+                if (btnDomeNext != null) btnDomeNext.Visible = false;
+            }
+            else
+            {
+                if (emptyFilterLbl != null) emptyFilterLbl.Visible = false;
+                if (pnlCornerEmpty != null) pnlCornerEmpty.Visible = false;
+
+                int total = matchingCards.Count;
+                int visibleSlots = 2;
+                int maxIdx = Math.Max(0, total - visibleSlots);
+                if (arcScrollIndex > maxIdx) arcScrollIndex = maxIdx;
+                if (arcScrollIndex < 0) arcScrollIndex = 0;
+
+                for (int i = 0; i < total; i++)
+                {
+                    Control c = matchingCards[i];
+                    if (total == 1)
+                    {
+                        PointF pt = GetPolarPoint(origin, rCards, bisectorAngle);
+                        c.Size = new Size(cardW, cardH);
+                        c.Location = new Point((int)(pt.X - cardW / 2), (int)(pt.Y - cardH / 2));
+                        LayoutCardInternalControls(c, cardW, cardH, true);
+                        c.Visible = true;
+                        c.BringToFront();
+                    }
+                    else
+                    {
+                        if (i >= arcScrollIndex && i < arcScrollIndex + visibleSlots)
+                        {
+                            int slot = i - arcScrollIndex; // 0 или 1
+                            float angle = (slot == 0) ? (bisectorAngle - 18f) : (bisectorAngle + 18f);
+                            PointF pt = GetPolarPoint(origin, rCards, angle);
+                            c.Size = new Size(cardW, cardH);
+                            c.Location = new Point((int)(pt.X - cardW / 2), (int)(pt.Y - cardH / 2));
+                            LayoutCardInternalControls(c, cardW, cardH, true);
+                            c.Visible = true;
+                            c.BringToFront();
+                        }
+                        else
+                        {
+                            c.Visible = false;
+                        }
+                    }
+                }
+
+                if (total > visibleSlots)
+                {
+                    float rNav = Math.Min((float)w - 20f, rCards + 96f);
+                    if (btnDomePrev != null)
+                    {
+                        PointF ptPrev = GetPolarPoint(origin, rNav, bisectorAngle - 4.5f);
+                        btnDomePrev.Size = new Size(28, 28);
+                        btnDomePrev.Location = new Point((int)(ptPrev.X - 14), (int)(ptPrev.Y - 14));
+                        btnDomePrev.Enabled = (arcScrollIndex > 0);
+                        btnDomePrev.Visible = true;
+                        btnDomePrev.BringToFront();
+                        btnDomePrev.Invalidate();
+                    }
+                    if (btnDomeNext != null)
+                    {
+                        PointF ptNext = GetPolarPoint(origin, rNav, bisectorAngle + 4.5f);
+                        btnDomeNext.Size = new Size(28, 28);
+                        btnDomeNext.Location = new Point((int)(ptNext.X - 14), (int)(ptNext.Y - 14));
+                        btnDomeNext.Enabled = (arcScrollIndex < maxIdx);
+                        btnDomeNext.Visible = true;
+                        btnDomeNext.BringToFront();
+                        btnDomeNext.Invalidate();
+                    }
+                }
+                else
+                {
+                    if (btnDomePrev != null) btnDomePrev.Visible = false;
+                    if (btnDomeNext != null) btnDomeNext.Visible = false;
+                }
+            }
+
+            container.ResumeLayout(true);
+        }
+
+        private void ApplyFilterToContainer(Panel container, bool isHub)
+        {
+            if (container == null) return;
+            if (this.IsCornerDockMode)
+            {
+                LayoutCornerCards(container, isHub);
+                return;
+            }
+            container.SuspendLayout();
+
+            string search = (txtSearch != null) ? txtSearch.Text.Trim() : null;
+            bool isHoriz = this.IsHorizontalDockMode;
+
             int cardY = 4;
-            int cardW = container.Width;
+            int cardX = 4;
+            int availableH = Math.Max(70, pnlViewport != null ? (pnlViewport.ClientSize.Height - 14) : 90);
+            int cardW;
+            if (this.IsCornerDockMode)
+            {
+                cardW = pnlViewport != null ? Math.Max(180, (pnlViewport.ClientSize.Width - 14) / 2) : 236;
+            }
+            else if (isHoriz)
+            {
+                cardW = 210;
+            }
+            else
+            {
+                cardW = pnlViewport != null ? Math.Max(100, pnlViewport.ClientSize.Width - 28) : container.Width;
+            }
             int visibleCount = 0;
             int totalItemsCount = 0;
             Label emptyFilterLbl = null;
@@ -2560,10 +4087,19 @@ namespace PasteImageAsFile
                 c.Visible = matches;
                 if (matches)
                 {
-                    c.Location = new Point(0, cardY);
-                    c.Width = cardW;
+                    if (isHoriz)
+                    {
+                        c.Location = new Point(cardX, 4);
+                        LayoutCardInternalControls(c, cardW, availableH, true);
+                        cardX += cardW + 8;
+                    }
+                    else
+                    {
+                        c.Location = new Point(0, cardY);
+                        LayoutCardInternalControls(c, cardW, c.Height, false);
+                        cardY += c.Height + 8;
+                    }
                     c.Invalidate();
-                    cardY += c.Height + 8;
                     visibleCount++;
                 }
             }
@@ -2590,10 +4126,21 @@ namespace PasteImageAsFile
                     {
                         emptyFilterLbl.Text = "В этой категории пока нет элементов.\nНажмите «Все», чтобы показать все элементы.";
                     }
-                    emptyFilterLbl.Width = cardW;
-                    emptyFilterLbl.Location = new Point(0, 30);
+
+                    if (isHoriz)
+                    {
+                        emptyFilterLbl.Width = Math.Max(320, pnlViewport != null ? (pnlViewport.ClientSize.Width - 40) : 320);
+                        emptyFilterLbl.Height = Math.Max(60, availableH);
+                        emptyFilterLbl.Location = new Point(20, 10);
+                        cardX = emptyFilterLbl.Right + 20;
+                    }
+                    else
+                    {
+                        emptyFilterLbl.Width = cardW;
+                        emptyFilterLbl.Location = new Point(0, 30);
+                        cardY = 200;
+                    }
                     emptyFilterLbl.Visible = true;
-                    cardY = 200;
                 }
                 else
                 {
@@ -2601,7 +4148,18 @@ namespace PasteImageAsFile
                 }
             }
 
-            container.Height = Math.Max(cardY + 10, 100);
+            if (isHoriz)
+            {
+                container.Top = 0;
+                container.Height = pnlViewport != null ? pnlViewport.ClientSize.Height : (availableH + 14);
+                container.Width = Math.Max(cardX + 16, pnlViewport != null ? pnlViewport.ClientSize.Width : 200);
+            }
+            else
+            {
+                container.Height = Math.Max(cardY + 10, 100);
+                container.Width = cardW;
+            }
+
             container.ResumeLayout(true);
             UpdateContainerScroll();
         }
@@ -2658,7 +4216,6 @@ namespace PasteImageAsFile
                 btnF.Paint += (s, e) => {
                     Graphics g = e.Graphics;
                     g.SmoothingMode = SmoothingMode.AntiAlias;
-                    ThemeHelper.DrawAcrylicBackground(g, btnF, this, acrylicBackdrop);
 
                     bool isCurrent = string.Equals(Config.SuperHubCurrentFolder, folderTag, StringComparison.OrdinalIgnoreCase);
                     Rectangle r = new Rectangle(0, 0, btnF.Width - 1, btnF.Height - 1);
@@ -2766,7 +4323,6 @@ namespace PasteImageAsFile
             btnAddFolder.Paint += (s, e) => {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                ThemeHelper.DrawAcrylicBackground(g, btnAddFolder, this, acrylicBackdrop);
                 Rectangle r = new Rectangle(0, 0, btnAddFolder.Width - 1, btnAddFolder.Height - 1);
                 if (isAddHover)
                 {
@@ -2979,11 +4535,15 @@ namespace PasteImageAsFile
         {
             if (pnlMainTabs != null) pnlMainTabs.Invalidate();
 
+            if (btnMainClipboard != null) btnMainClipboard.Invalidate();
+            if (btnMainSuperHub != null) btnMainSuperHub.Invalidate();
+
             for (int i = 0; i < filterButtons.Count; i++)
             {
                 filterButtons[i].BackColor = Color.Transparent;
                 filterButtons[i].Invalidate();
             }
+            if (flpSubTabs != null) flpSubTabs.Invalidate();
 
             if (btnClickAction != null) btnClickAction.Invalidate();
             if (btnDragMode != null) btnDragMode.Invalidate();
@@ -3115,9 +4675,24 @@ namespace PasteImageAsFile
         private void UpdateContainerScroll()
         {
             if (cardsContainer == null || pnlViewport == null) return;
-            maxScrollY = Math.Max(0, cardsContainer.Height - pnlViewport.Height);
-            if (scrollY > maxScrollY) scrollY = maxScrollY;
-            cardsContainer.Top = -scrollY;
+            if (IsHorizontalDockMode)
+            {
+                int extraScroll = 0;
+                int padLeft = IsCornerDockMode ? 4 : 12;
+                maxScrollX = Math.Max(0, cardsContainer.Width - pnlViewport.ClientSize.Width + extraScroll);
+                if (scrollX > maxScrollX) scrollX = maxScrollX;
+                if (scrollX < 0) scrollX = 0;
+                cardsContainer.Left = padLeft - scrollX;
+                cardsContainer.Top = 0;
+            }
+            else
+            {
+                maxScrollY = Math.Max(0, cardsContainer.Height - pnlViewport.Height);
+                if (scrollY > maxScrollY) scrollY = maxScrollY;
+                if (scrollY < 0) scrollY = 0;
+                cardsContainer.Top = -scrollY;
+                cardsContainer.Left = 14;
+            }
             pnlViewport.Invalidate();
         }
 
@@ -3226,7 +4801,7 @@ namespace PasteImageAsFile
                 string trimmed = item.TextContent.Trim();
                 if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                     trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                    (trimmed.Length < 260 && (SafeFileExists(trimmed) || SafeDirectoryExists(trimmed))))
+                    (trimmed.Length < 260 && (trimmed.IndexOf('\\') >= 0 || trimmed.IndexOf('/') >= 0) && (SafeFileExists(trimmed) || SafeDirectoryExists(trimmed))))
                 {
                     targetPathForLaunch = trimmed;
                 }
@@ -3361,7 +4936,7 @@ namespace PasteImageAsFile
                         : fn;
                 }
 
-                string fType = isPdf ? "PDF" : (SafeDirectoryExists(firstFile) ? "Папка" : "Файл");
+                string fType = isPdf ? "PDF" : (string.IsNullOrEmpty(SafeGetExtension(firstFile)) && SafeDirectoryExists(firstFile) ? "Папка" : "Файл");
                 string sz = item.FileSizeBytes > 0 ? (" • " + (item.FileSizeBytes / 1024) + " КБ") : "";
                 string subText = fType + sz + " • " + item.Timestamp.ToString("HH:mm");
 
@@ -3399,8 +4974,8 @@ namespace PasteImageAsFile
             // Правая колонка из 2 кнопок (1-в-1 как в Windows 11: вверху [⋯], внизу наклонная булавка [📌])
             Button btnMore = new Button
             {
-                Location = new Point(card.Width - 32, 6),
-                Size = new Size(26, 22),
+                Location = new Point(card.Width - 30, 6),
+                Size = new Size(24, 22),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
@@ -3414,24 +4989,17 @@ namespace PasteImageAsFile
             btnMore.MouseEnter += (s, e) => { isHoverMore = true; btnMore.Invalidate(); };
             btnMore.MouseLeave += (s, e) => { isHoverMore = false; btnMore.Invalidate(); };
             btnMore.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnMore, this, acrylicBackdrop);
-                Color glassFill = ThemeHelper.IsDarkTheme()
-                    ? Color.FromArgb(card.IsCardHovered ? 36 : 22, 255, 255, 255)
-                    : Color.FromArgb(card.IsCardHovered ? 242 : 218, 255, 255, 255);
-                using (var glassBrush = new SolidBrush(glassFill))
-                {
-                    e.Graphics.FillRectangle(glassBrush, 0, 0, btnMore.Width, btnMore.Height);
-                }
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
                 if (isHoverMore)
                 {
-                    using (var b = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnMore.Width - 1, btnMore.Height - 1), 4))
+                    using (var b = new SolidBrush(Color.FromArgb(50, 255, 255, 255)))
+                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnMore.Width - 1, btnMore.Height - 1), 5))
                     {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
+                        g.FillPath(b, p);
                     }
                 }
-                DrawMoreDotsIcon(e.Graphics, new Rectangle(0, 0, btnMore.Width, btnMore.Height), isHoverMore ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
+                DrawMoreDotsIcon(g, new Rectangle(0, 0, btnMore.Width, btnMore.Height), isHoverMore ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
             };
             btnMore.Click += (s, e) => {
                 ContextMenu cm = CreateCardContextMenu(item);
@@ -3442,8 +5010,8 @@ namespace PasteImageAsFile
 
             Button btnPin = new Button
             {
-                Location = new Point(card.Width - 32, cardH - 28),
-                Size = new Size(26, 22),
+                Location = new Point(card.Width - 30, cardH - 28),
+                Size = new Size(24, 22),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
@@ -3457,25 +5025,18 @@ namespace PasteImageAsFile
             btnPin.MouseEnter += (s, e) => { isHoverPin = true; btnPin.Invalidate(); };
             btnPin.MouseLeave += (s, e) => { isHoverPin = false; btnPin.Invalidate(); };
             btnPin.Paint += (s, e) => {
-                ThemeHelper.DrawAcrylicBackground(e.Graphics, btnPin, this, acrylicBackdrop);
-                Color glassFill = ThemeHelper.IsDarkTheme()
-                    ? Color.FromArgb(card.IsCardHovered ? 36 : 22, 255, 255, 255)
-                    : Color.FromArgb(card.IsCardHovered ? 242 : 218, 255, 255, 255);
-                using (var glassBrush = new SolidBrush(glassFill))
-                {
-                    e.Graphics.FillRectangle(glassBrush, 0, 0, btnPin.Width, btnPin.Height);
-                }
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
                 if (isHoverPin)
                 {
-                    using (var b = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
-                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnPin.Width - 1, btnPin.Height - 1), 4))
+                    using (var b = new SolidBrush(Color.FromArgb(50, 255, 255, 255)))
+                    using (var p = CreateRoundedPath(new Rectangle(0, 0, btnPin.Width - 1, btnPin.Height - 1), 5))
                     {
-                        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                        e.Graphics.FillPath(b, p);
+                        g.FillPath(b, p);
                     }
                 }
                 Color pinColor = item.IsPinned ? ThemeHelper.Accent : (isHoverPin ? ThemeHelper.TextPrimary : ThemeHelper.TextSecondary);
-                DrawWin11PinIcon(e.Graphics, new Rectangle(0, 0, btnPin.Width, btnPin.Height), pinColor, item.IsPinned);
+                DrawWin11PinIcon(g, new Rectangle(0, 0, btnPin.Width, btnPin.Height), pinColor, item.IsPinned);
             };
             btnPin.Click += (s, e) => {
                 ClipboardHistoryManager.Instance.TogglePin(item.Id);
@@ -4072,16 +5633,77 @@ namespace PasteImageAsFile
             }
         }
 
+        private static readonly Dictionary<string, bool> safeDirCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, bool> safeFileCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private static readonly object pathCacheLock = new object();
+
         private static bool SafeDirectoryExists(string path)
         {
             if (string.IsNullOrEmpty(path)) return false;
-            try { return Directory.Exists(path); } catch { return false; }
+            if (path.IndexOf('\n') >= 0 || path.IndexOf('\r') >= 0) return false;
+            try
+            {
+                if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0) return false;
+            }
+            catch { return false; }
+
+            // Сетевые UNC-пути не должны блокировать UI сетевыми таймаутами
+            if (path.StartsWith(@"\\") || path.StartsWith("//"))
+            {
+                if (path.EndsWith("\\") || path.EndsWith("/")) return true;
+                string ext = SafeGetExtension(path);
+                return string.IsNullOrEmpty(ext);
+            }
+
+            lock (pathCacheLock)
+            {
+                bool cached;
+                if (safeDirCache.TryGetValue(path, out cached)) return cached;
+            }
+
+            bool exists = false;
+            try { exists = Directory.Exists(path); } catch { exists = false; }
+
+            lock (pathCacheLock)
+            {
+                if (safeDirCache.Count > 500) safeDirCache.Clear();
+                safeDirCache[path] = exists;
+            }
+            return exists;
         }
 
         private static bool SafeFileExists(string path)
         {
             if (string.IsNullOrEmpty(path)) return false;
-            try { return File.Exists(path); } catch { return false; }
+            if (path.IndexOf('\n') >= 0 || path.IndexOf('\r') >= 0) return false;
+            try
+            {
+                if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0) return false;
+            }
+            catch { return false; }
+
+            // Сетевые UNC-пути не должны блокировать UI сетевыми таймаутами
+            if (path.StartsWith(@"\\") || path.StartsWith("//"))
+            {
+                string ext = SafeGetExtension(path);
+                return !string.IsNullOrEmpty(ext);
+            }
+
+            lock (pathCacheLock)
+            {
+                bool cached;
+                if (safeFileCache.TryGetValue(path, out cached)) return cached;
+            }
+
+            bool exists = false;
+            try { exists = File.Exists(path); } catch { exists = false; }
+
+            lock (pathCacheLock)
+            {
+                if (safeFileCache.Count > 500) safeFileCache.Clear();
+                safeFileCache[path] = exists;
+            }
+            return exists;
         }
 
         private static string SafeGetExtension(string path)
@@ -4205,8 +5827,13 @@ namespace PasteImageAsFile
 
                     if (currentInstance != null && !currentInstance.IsDisposed && currentInstance.Visible)
                     {
-                        currentInstance.SwitchMainTab(initialSuperHubTab ? 1 : 0);
-                        currentInstance.UpdateSubBarLayout();
+                        currentInstance.dockMarkerBounds = markerBounds;
+                        int targetTab = initialSuperHubTab ? 1 : 0;
+                        if (currentInstance.currentMainTab != targetTab)
+                        {
+                            currentInstance.SwitchMainTab(targetTab);
+                            currentInstance.UpdateSubBarLayout();
+                        }
                         currentInstance.BringToFront();
                         SetForegroundWindow(currentInstance.Handle);
                         currentInstance.Activate();
@@ -4219,22 +5846,35 @@ namespace PasteImageAsFile
                         if (realUserWindow != IntPtr.Zero) prevFg = realUserWindow;
                     }
 
-                    currentInstance = new ClipboardFlyoutForm(prevFg);
-                    currentInstance.isDockFlyout = true;
-                    currentInstance.currentDockScreen = scr;
+                    currentInstance = new ClipboardFlyoutForm(prevFg, true, position, scr);
+                    currentInstance.dockMarkerBounds = markerBounds;
+
+                    Rectangle work = scr.WorkingArea;
+
+                    if (currentInstance.IsHorizontalDockMode)
+                    {
+                        currentInstance.MinimumSize = new Size(480, 160);
+                        int initW = Math.Max(480, Config.SuperHubWidthHorizontal);
+                        int initH = Math.Max(160, Config.SuperHubHeightHorizontal);
+                        currentInstance.Size = new Size(initW, initH);
+                    }
+                    else
+                    {
+                        currentInstance.MinimumSize = new Size(310, 420);
+                        int initW = Math.Max(310, Config.ClipboardFlyoutWidth);
+                        int initH = Math.Max(420, Config.ClipboardFlyoutHeight);
+                        currentInstance.Size = new Size(initW, initH);
+                    }
 
                     currentInstance.SwitchMainTab(initialSuperHubTab ? 1 : 0);
                     currentInstance.UpdateSubBarLayout();
 
-                    currentInstance.dockPositionMode = position ?? "";
-
-                    Rectangle work = scr.WorkingArea;
                     int w = currentInstance.Width;
                     int h = currentInstance.Height;
 
                     // Защита от превышения размеров экрана при масштабировании или маленьком дисплее
                     if (w > work.Width - 16) w = Math.Max(280, work.Width - 16);
-                    if (h > work.Height - 16) h = Math.Max(320, work.Height - 16);
+                    if (h > work.Height - 16) h = Math.Max(currentInstance.IsHorizontalDockMode ? 160 : 320, work.Height - 16);
                     currentInstance.Size = new Size(w, h);
 
                     int markerCenterY;
@@ -4251,46 +5891,65 @@ namespace PasteImageAsFile
                     }
                     currentInstance.anchorMarkerCenterY = markerCenterY;
 
-                    int targetX = work.Right - w - 4;
-                    int targetY = markerCenterY - h / 2;
+                    int targetX;
+                    int targetY;
 
-                    if (string.Equals(position, "CornerBottomRight", StringComparison.OrdinalIgnoreCase))
+                    if (currentInstance.IsHorizontalDockMode)
+                    {
+                        int markerCenterX = (markerBounds != Rectangle.Empty && markerBounds.Width > 0)
+                            ? (markerBounds.Left + markerBounds.Width / 2)
+                            : (work.Left + work.Width / 2);
+
+                        if (string.Equals(position, "TopCenter", StringComparison.OrdinalIgnoreCase))
+                        {
+                            targetX = markerCenterX - w / 2;
+                            targetY = work.Top + 4;
+                        }
+                        else
+                        {
+                            targetX = markerCenterX - w / 2;
+                            targetY = work.Bottom - h - 4;
+                        }
+                    }
+                    else if (position.StartsWith("Corner", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Угловые позиции: раскрываются как обычное вертикальное меню у соответствующего угла экрана
+                        if (position.IndexOf("Right", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            targetX = work.Right - w - 4;
+                        }
+                        else // Left
+                        {
+                            targetX = work.Left + 4;
+                        }
+
+                        if (position.IndexOf("Bottom", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            targetY = work.Bottom - h - 4;
+                        }
+                        else // Top
+                        {
+                            targetY = work.Top + 4;
+                        }
+                    }
+                    else
                     {
                         targetX = work.Right - w - 4;
-                        targetY = work.Bottom - h - 4;
-                    }
-                    else if (string.Equals(position, "CornerBottomLeft", StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetX = work.Left + 4;
-                        targetY = work.Bottom - h - 4;
-                    }
-                    else if (string.Equals(position, "CornerTopRight", StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetX = work.Right - w - 4;
-                        targetY = work.Top + 4;
-                    }
-                    else if (string.Equals(position, "CornerTopLeft", StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetX = work.Left + 4;
-                        targetY = work.Top + 4;
-                    }
-                    else if (string.Equals(position, "TopCenter", StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetX = work.Left + (work.Width - w) / 2;
-                        targetY = work.Top + 4;
-                    }
-                    else if (string.Equals(position, "BottomCenter", StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetX = work.Left + (work.Width - w) / 2;
-                        targetY = work.Bottom - h - 4;
-                    }
-                    else if (position.StartsWith("Left", StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetX = work.Left + 4;
-                    }
-                    else // Right (RightCenter, RightTop, RightBottom)
-                    {
-                        targetX = work.Right - w - 4;
+                        targetY = markerCenterY - h / 2;
+
+                        if (string.Equals(position, "TopCenter", StringComparison.OrdinalIgnoreCase))
+                        {
+                            targetX = work.Left + (work.Width - w) / 2;
+                            targetY = work.Top + 4;
+                        }
+                        else if (position.StartsWith("Left", StringComparison.OrdinalIgnoreCase))
+                        {
+                            targetX = work.Left + 4;
+                        }
+                        else // Right (RightCenter, RightTop, RightBottom)
+                        {
+                            targetX = work.Right - w - 4;
+                        }
                     }
 
                     // Строгий клампинг координат внутри рабочей области активного экрана
@@ -4299,26 +5958,9 @@ namespace PasteImageAsFile
                     if (targetY + h > work.Bottom - 4) targetY = work.Bottom - h - 4;
                     if (targetY < work.Top + 4) targetY = work.Top + 4;
 
-                    Point startPoint;
-                    if (position.StartsWith("Left", StringComparison.OrdinalIgnoreCase))
-                    {
-                        startPoint = new Point(targetX - 16, targetY);
-                    }
-                    else if (string.Equals(position, "TopCenter", StringComparison.OrdinalIgnoreCase))
-                    {
-                        startPoint = new Point(targetX, targetY - 16);
-                    }
-                    else if (string.Equals(position, "BottomCenter", StringComparison.OrdinalIgnoreCase))
-                    {
-                        startPoint = new Point(targetX, targetY + 16);
-                    }
-                    else
-                    {
-                        startPoint = new Point(targetX + 16, targetY);
-                    }
-
                     currentInstance.UpdateSubBarLayout();
-                    currentInstance.AnimateIn(new Point(targetX, targetY), startPoint);
+                    currentInstance.LayoutControls();
+                    currentInstance.AnimateIn(new Point(targetX, targetY), new Point(targetX, targetY));
                     Logger.Log(string.Format("Dock Flyout shown at ({0},{1}) on {2}", targetX, targetY, scr.DeviceName));
                 }
             }
@@ -5002,9 +6644,14 @@ namespace PasteImageAsFile
         {
             try
             {
+                isGeneratingScreenshots = true;
                 if (string.IsNullOrEmpty(outDir))
                 {
                     outDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Screenshots");
+                }
+                else if (!Path.IsPathRooted(outDir))
+                {
+                    outDir = Path.GetFullPath(outDir);
                 }
                 if (!Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
                 Logger.Log("GenerateScreenshots target dir: " + outDir);
@@ -5032,7 +6679,7 @@ namespace PasteImageAsFile
                             CaptureFormBitmap(form, clipPath);
                             Logger.Log("Saved flyout_clipboard.png to " + clipPath);
 
-                            // Сохраняем также наглядный превью-снимок разделенного двухцветного маркера у края экрана
+                            // Сохраняем также наглядный превью-снимок единого двухцветного маркера у края экрана (вертикальный и горизонтальный)
                             try
                             {
                                 using (Bitmap markerPreview = new Bitmap(80, 180))
@@ -5044,18 +6691,64 @@ namespace PasteImageAsFile
                                     int my = 21;
                                     int mw = 5;
                                     int mh = 138;
-                                    int half = (mh - 3) / 2;
-                                    using (var b1 = new SolidBrush(ThemeHelper.Accent))
-                                    using (var p1 = CreateRoundedPath(new Rectangle(mx, my, mw, half), 2))
+                                    int half = mh / 2;
+                                    using (var path = CreateRoundedPath(new Rectangle(mx, my, mw, mh), 2))
                                     {
-                                        mg.FillPath(b1, p1);
-                                    }
-                                    using (var b2 = new SolidBrush(ThemeHelper.SuperHubSecondaryAccent))
-                                    using (var p2 = CreateRoundedPath(new Rectangle(mx, my + half + 3, mw, mh - half - 3), 2))
-                                    {
-                                        mg.FillPath(b2, p2);
+                                        mg.SetClip(path);
+                                        using (var b1 = new SolidBrush(ThemeHelper.Accent))
+                                        {
+                                            mg.FillRectangle(b1, mx, my, mw, half);
+                                        }
+                                        using (var b2 = new SolidBrush(ThemeHelper.SuperHubSecondaryAccent))
+                                        {
+                                            mg.FillRectangle(b2, mx, my + half, mw, mh - half);
+                                        }
+                                        mg.ResetClip();
                                     }
                                     markerPreview.Save(Path.Combine(outDir, "superhub_marker.png"), System.Drawing.Imaging.ImageFormat.Png);
+                                }
+
+                                using (Bitmap markerHoriz = new Bitmap(180, 80))
+                                using (Graphics hg = Graphics.FromImage(markerHoriz))
+                                {
+                                    hg.SmoothingMode = SmoothingMode.AntiAlias;
+                                    hg.Clear(Color.FromArgb(24, 24, 24));
+                                    int hx = 21;
+                                    int hy = 68;
+                                    int hw = 138;
+                                    int hh = 5;
+                                    int hhalf = hw / 2;
+                                    using (var hpath = CreateRoundedPath(new Rectangle(hx, hy, hw, hh), 2))
+                                    {
+                                        hg.SetClip(hpath);
+                                        using (var b1 = new SolidBrush(ThemeHelper.Accent))
+                                        {
+                                            hg.FillRectangle(b1, hx, hy, hhalf, hh);
+                                        }
+                                        using (var b2 = new SolidBrush(ThemeHelper.SuperHubSecondaryAccent))
+                                        {
+                                            hg.FillRectangle(b2, hx + hhalf, hy, hw - hhalf, hh);
+                                        }
+                                        hg.ResetClip();
+                                    }
+                                    markerHoriz.Save(Path.Combine(outDir, "superhub_marker_horizontal.png"), System.Drawing.Imaging.ImageFormat.Png);
+                                }
+
+                                using (Bitmap markerCorner = new Bitmap(80, 80))
+                                using (Graphics cg = Graphics.FromImage(markerCorner))
+                                {
+                                    cg.SmoothingMode = SmoothingMode.AntiAlias;
+                                    cg.Clear(Color.FromArgb(24, 24, 24));
+                                    int cr = 46;
+                                    using (var b1 = new SolidBrush(ThemeHelper.Accent))
+                                    {
+                                        cg.FillPie(b1, 80 - cr, 80 - cr, cr * 2, cr * 2, 180, 45);
+                                    }
+                                    using (var b2 = new SolidBrush(ThemeHelper.SuperHubSecondaryAccent))
+                                    {
+                                        cg.FillPie(b2, 80 - cr, 80 - cr, cr * 2, cr * 2, 225, 45);
+                                    }
+                                    markerCorner.Save(Path.Combine(outDir, "superhub_marker_corner.png"), System.Drawing.Imaging.ImageFormat.Png);
                                 }
                             }
                             catch {}
@@ -5068,10 +6761,72 @@ namespace PasteImageAsFile
                         else if (capturePhase == 1)
                         {
                             capturePhase = 2;
-                            captureTimer.Stop();
                             string hubPath = Path.Combine(outDir, "flyout_superhub.png");
                             CaptureFormBitmap(form, hubPath);
                             Logger.Log("Saved flyout_superhub.png to " + hubPath);
+
+                            // Проверка ресайза: растягиваем окно по ширине и высоте (как при ручном растягивании пользователем)
+                            form.MinimumSize = new Size(300, 350);
+                            form.Size = new Size(480, 580);
+                            form.LayoutControls();
+                            form.UpdateAcrylicBackdrop(form.Location);
+                            form.Refresh();
+                        }
+                        else if (capturePhase == 2)
+                        {
+                            capturePhase = 3;
+                            string resizedPath = Path.Combine(outDir, "flyout_resized.png");
+                            CaptureFormBitmap(form, resizedPath);
+                            Logger.Log("Saved flyout_resized.png to " + resizedPath);
+
+                            // Переводим форму в горизонтальный док снизу и делаем снимок с карточками
+                            form.isDockFlyout = true;
+                            form.dockPositionMode = "BottomCenter";
+                            form.MinimumSize = new Size(480, 160);
+                            form.Size = new Size(720, 230);
+                            form.Location = new Point(100, 350);
+                            form.SwitchMainTab(0);
+                            form.LayoutControls();
+                            form.UpdateAcrylicBackdrop(form.Location);
+                            form.Refresh();
+                        }
+                        else if (capturePhase == 3)
+                        {
+                            capturePhase = 4;
+                            string dockPath = Path.Combine(outDir, "flyout_superhub_dock.png");
+                            CaptureFormBitmap(form, dockPath);
+                            Logger.Log("Saved flyout_superhub_dock.png to " + dockPath);
+
+                            // Переводим форму в угловой режим снизу слева (стандартное меню у угла) - SuperHub
+                            form.dockPositionMode = "CornerBottomLeft";
+                            form.MinimumSize = new Size(310, 420);
+                            form.Size = new Size(360, 520);
+                            form.Location = new Point(100, 100);
+                            form.SwitchMainTab(1);
+                            form.LayoutControls();
+                            form.UpdateAcrylicBackdrop(form.Location);
+                            form.Refresh();
+                        }
+                        else if (capturePhase == 4)
+                        {
+                            capturePhase = 5;
+                            string cornerPath = Path.Combine(outDir, "flyout_superhub_corner.png");
+                            CaptureFormBitmap(form, cornerPath);
+                            Logger.Log("Saved flyout_superhub_corner.png to " + cornerPath);
+
+                            // В угловом режиме переключаем на Буфер обмена (с карточками)
+                            form.SwitchMainTab(0);
+                            form.LayoutControls();
+                            form.UpdateAcrylicBackdrop(form.Location);
+                            form.Refresh();
+                        }
+                        else if (capturePhase == 5)
+                        {
+                            capturePhase = 6;
+                            captureTimer.Stop();
+                            string cornerClipPath = Path.Combine(outDir, "flyout_clipboard_corner.png");
+                            CaptureFormBitmap(form, cornerClipPath);
+                            Logger.Log("Saved flyout_clipboard_corner.png to " + cornerClipPath);
 
                             form.Hide();
 
@@ -5171,15 +6926,75 @@ namespace PasteImageAsFile
             {
                 Logger.Log("GenerateScreenshots error: " + ex.ToString());
             }
+            finally
+            {
+                isGeneratingScreenshots = false;
+            }
         }
 
         private static void CaptureFormBitmap(Form f, string path)
         {
             try
             {
+                ClipboardFlyoutForm cff = f as ClipboardFlyoutForm;
+                bool isCorner = cff != null && cff.IsCornerDockMode;
+                Logger.Log(string.Format("CaptureFormBitmap path={0}, f.Region={1}, isCorner={2}, size={3}x{4}",
+                    Path.GetFileName(path),
+                    f.Region != null ? "NOT_NULL" : "NULL",
+                    isCorner,
+                    f.Width,
+                    f.Height));
+
                 using (Bitmap bmp = new Bitmap(f.Width, f.Height))
                 {
-                    f.DrawToBitmap(bmp, new Rectangle(0, 0, f.Width, f.Height));
+                    bool captured = false;
+                    if (f.Visible && f.IsHandleCreated)
+                    {
+                        try
+                        {
+                            using (Graphics sg = Graphics.FromImage(bmp))
+                            {
+                                Point scrPt = f.PointToScreen(Point.Empty);
+                                sg.CopyFromScreen(scrPt, Point.Empty, f.Size, CopyPixelOperation.SourceCopy);
+                                captured = true;
+                            }
+                        }
+                        catch {}
+                    }
+                    if (!captured)
+                    {
+                        f.DrawToBitmap(bmp, new Rectangle(0, 0, f.Width, f.Height));
+                    }
+
+                    if (isCorner)
+                    {
+                        using (Bitmap masked = new Bitmap(f.Width, f.Height))
+                        using (Graphics g = Graphics.FromImage(masked))
+                        {
+                            g.Clear(Color.Transparent);
+                            using (var pathRegion = CreateCornerPiePath(f.Width, f.Height, cff.dockPositionMode))
+                            using (var rgn = new Region(pathRegion))
+                            {
+                                g.Clip = rgn;
+                                g.DrawImage(bmp, 0, 0);
+                            }
+                            masked.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                            Logger.Log("CaptureFormBitmap: successfully saved masked corner PNG to " + path);
+                            return;
+                        }
+                    }
+                    else if (f.Region != null)
+                    {
+                        using (Bitmap masked = new Bitmap(f.Width, f.Height))
+                        using (Graphics g = Graphics.FromImage(masked))
+                        {
+                            g.Clear(Color.Transparent);
+                            g.Clip = f.Region;
+                            g.DrawImage(bmp, 0, 0);
+                            masked.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                            return;
+                        }
+                    }
                     bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
                 }
             }

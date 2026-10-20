@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace PasteImageAsFile
@@ -175,12 +176,33 @@ namespace PasteImageAsFile
             }
         }
 
-        public static Bitmap CaptureAcrylicBackdrop(Rectangle screenBounds)
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+        public const uint WDA_NONE = 0x00000000;
+        public const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+        public static Bitmap CaptureAcrylicBackdrop(Rectangle screenBounds, Form formToHide = null)
         {
             int w = Math.Max(64, screenBounds.Width);
             int h = Math.Max(64, screenBounds.Height);
             Bitmap result = new Bitmap(w, h);
             bool isDark = IsDarkTheme();
+
+            double prevOpacity = 1.0;
+            bool wasVisible = false;
+
+            if (formToHide != null && !formToHide.IsDisposed && formToHide.IsHandleCreated && formToHide.Visible)
+            {
+                try
+                {
+                    wasVisible = true;
+                    prevOpacity = formToHide.Opacity;
+                    formToHide.Opacity = 0.0;
+                    Application.DoEvents();
+                    System.Threading.Thread.Sleep(20);
+                }
+                catch {}
+            }
 
             try
             {
@@ -196,6 +218,18 @@ namespace PasteImageAsFile
                         }
                     }
                     catch {}
+                    finally
+                    {
+                        if (wasVisible && formToHide != null && !formToHide.IsDisposed)
+                        {
+                            try
+                            {
+                                formToHide.Opacity = prevOpacity;
+                                Application.DoEvents();
+                            }
+                            catch {}
+                        }
+                    }
 
                     int w1 = Math.Max(12, w / 6);
                     int h1 = Math.Max(12, h / 6);
@@ -281,10 +315,21 @@ namespace PasteImageAsFile
         public static void DrawAcrylicBackground(Graphics g, Control ctrl, Form rootForm, Bitmap acrylicBackdrop)
         {
             if (g == null || ctrl == null) return;
+
+            // Всегда очищаем базовым цветом темы, исключая черные полосы и артефакты при ресайзе
+            g.Clear(Background);
+
             if (acrylicBackdrop != null && rootForm != null && !rootForm.IsDisposed)
             {
                 try
                 {
+                    Point backdropOrigin = Point.Empty;
+                    ClipboardFlyoutForm flyout = rootForm as ClipboardFlyoutForm;
+                    if (flyout != null)
+                    {
+                        backdropOrigin = flyout.BackdropOrigin;
+                    }
+
                     Point pt = Point.Empty;
                     Control cur = ctrl;
                     while (cur != null && cur != rootForm)
@@ -293,13 +338,23 @@ namespace PasteImageAsFile
                         pt.Y += cur.Top;
                         cur = cur.Parent;
                     }
-                    Rectangle srcRect = new Rectangle(pt.X, pt.Y, ctrl.Width, ctrl.Height);
-                    g.DrawImage(acrylicBackdrop, new Rectangle(0, 0, ctrl.Width, ctrl.Height), srcRect, GraphicsUnit.Pixel);
-                    return;
+
+                    int screenX = rootForm.Left + pt.X;
+                    int screenY = rootForm.Top + pt.Y;
+                    int srcX = screenX - backdropOrigin.X;
+                    int srcY = screenY - backdropOrigin.Y;
+
+                    Rectangle srcRect = new Rectangle(srcX, srcY, ctrl.Width, ctrl.Height);
+                    Rectangle bmpRect = new Rectangle(0, 0, acrylicBackdrop.Width, acrylicBackdrop.Height);
+                    Rectangle safeSrc = Rectangle.Intersect(srcRect, bmpRect);
+                    if (safeSrc.Width > 0 && safeSrc.Height > 0)
+                    {
+                        Rectangle safeDest = new Rectangle(safeSrc.X - srcX, safeSrc.Y - srcY, safeSrc.Width, safeSrc.Height);
+                        g.DrawImage(acrylicBackdrop, safeDest, safeSrc, GraphicsUnit.Pixel);
+                    }
                 }
                 catch {}
             }
-            g.Clear(Background);
         }
 
         public static Color AccentBackground

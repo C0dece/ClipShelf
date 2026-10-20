@@ -610,7 +610,6 @@ namespace PasteImageAsFile
             {
                 CreateParams cp = base.CreateParams;
                 cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
-                cp.ExStyle |= 0x02000000;    // WS_EX_COMPOSITED
                 return cp;
             }
         }
@@ -722,6 +721,8 @@ namespace PasteImageAsFile
         private CheckBox chkSuperHubFoldersEnabled;
         private Panel pnlScreensBox;
         private readonly List<CheckBox> chkScreenList = new List<CheckBox>();
+        private int screensScrollY = 0;
+        private int screensTotalContentH = 0;
         private FluentComboBox cmbSuperHubAccentColor;
         private Panel pnlSuperHubAccentPreview;
         private FluentComboBox cmbSuperHubAddHotkey;
@@ -730,6 +731,7 @@ namespace PasteImageAsFile
         private FluentComboBox cmbSuperHubPosition;
         private FluentComboBox cmbSuperHubDragMode;
         private FluentComboBox cmbSuperHubSens;
+        private FluentComboBox cmbSuperHubAutoHideDelay;
         private FluentButton btnTestSuperHub;
 
         // Подвал формы
@@ -776,9 +778,9 @@ namespace PasteImageAsFile
             this.SuspendLayout();
 
             this.Text = "ClipShelf - Настройки";
-            this.Size = new Size(514, 720);
-            this.MinimumSize = new Size(514, 720);
-            this.MaximumSize = new Size(514, 720);
+            this.Size = new Size(514, 760);
+            this.MinimumSize = new Size(514, 760);
+            this.MaximumSize = new Size(514, 760);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
@@ -1092,8 +1094,8 @@ namespace PasteImageAsFile
                 }
             };
 
-            // 5. Единая карточка настроек (Settings Card Container) - 382px, просторная, с красивыми отступами
-            pnlSettingsCard = CreateCard(16, 266, 482, 382);
+            // 5. Единая карточка настроек (Settings Card Container) - 422px, просторная, с красивыми отступами
+            pnlSettingsCard = CreateCard(16, 266, 482, 422);
 
             // Страница 1: Основные
             pnlPageGeneral = new Panel
@@ -1122,7 +1124,8 @@ namespace PasteImageAsFile
                 Location = new Point(4, 4),
                 Size = new Size(pnlSettingsCard.Width - 8, pnlSettingsCard.Height - 8),
                 BackColor = ThemeHelper.CardBackground,
-                Visible = false
+                Visible = false,
+                AutoScroll = true
             };
             BuildSuperHubPage();
             pnlSettingsCard.Controls.Add(pnlPageSuperHub);
@@ -1130,7 +1133,7 @@ namespace PasteImageAsFile
             // 6. Подвал (Footer)
             pnlFooter = new Panel
             {
-                Location = new Point(16, 660),
+                Location = new Point(16, 700),
                 Size = new Size(482, 42),
                 BackColor = ThemeHelper.Background
             };
@@ -1180,6 +1183,12 @@ namespace PasteImageAsFile
             pnlPageGeneral.Visible = (index == 0);
             pnlPageClipboard.Visible = (index == 1);
             pnlPageSuperHub.Visible = (index == 2);
+
+            if (pnlSettingsCard != null)
+            {
+                pnlSettingsCard.Invalidate(true);
+                pnlSettingsCard.Update();
+            }
         }
 
         private void BuildGeneralPage()
@@ -1549,15 +1558,25 @@ namespace PasteImageAsFile
                 AutoSize = true
             };
             pnlPageSuperHub.Controls.Add(lblScreens);
-            top += 18;
+            top += 20;
+
+            Screen[] screens = Screen.AllScreens;
+            int screenCount = screens.Length;
+            int boxHeight;
+            if (screenCount <= 1) boxHeight = 34;
+            else if (screenCount == 2) boxHeight = 58;
+            else if (screenCount == 3) boxHeight = 82;
+            else boxHeight = 106;
 
             pnlScreensBox = new Panel
             {
                 Location = new Point(14, top),
-                Size = new Size(446, 40),
-                BackColor = ThemeHelper.IsDarkTheme() ? Color.FromArgb(38, 38, 38) : Color.FromArgb(242, 245, 250),
-                AutoScroll = true
+                Size = new Size(446, boxHeight),
+                BackColor = ThemeHelper.IsDarkTheme() ? Color.FromArgb(34, 34, 34) : Color.FromArgb(242, 245, 250),
+                AutoScroll = false
             };
+            pnlScreensBox.MouseWheel += (s, e) => ScrollScreens(e.Delta);
+
             pnlScreensBox.Paint += (s, e) => {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -1567,11 +1586,25 @@ namespace PasteImageAsFile
                 {
                     g.DrawPath(pen, path);
                 }
+
+                if (screensTotalContentH > pnlScreensBox.ClientSize.Height)
+                {
+                    int trackHeight = pnlScreensBox.ClientSize.Height - 8;
+                    int thumbH = Math.Max(18, (int)((float)pnlScreensBox.ClientSize.Height / screensTotalContentH * trackHeight));
+                    int maxScroll = Math.Max(1, screensTotalContentH - pnlScreensBox.ClientSize.Height + 6);
+                    int thumbY = 4 + (int)((float)screensScrollY / maxScroll * (trackHeight - thumbH));
+                    Rectangle thumbRect = new Rectangle(pnlScreensBox.ClientSize.Width - 7, thumbY, 4, thumbH);
+                    using (var b = new SolidBrush(ThemeHelper.ScrollBarThumb))
+                    using (var p = CreateRoundedPath(thumbRect, 2))
+                    {
+                        g.FillPath(b, p);
+                    }
+                }
             };
             pnlPageSuperHub.Controls.Add(pnlScreensBox);
 
-            Screen[] screens = Screen.AllScreens;
-            int scrY = 3;
+            screensScrollY = 0;
+            int scrY = 5;
             chkScreenList.Clear();
             for (int i = 0; i < screens.Length; i++)
             {
@@ -1579,6 +1612,7 @@ namespace PasteImageAsFile
                 string dev = scr.DeviceName;
                 string title = string.Format("Экран {0}: {1}x{2}{3}", i + 1, scr.Bounds.Width, scr.Bounds.Height, scr.Primary ? " (Основной)" : "");
                 CheckBox chkScr = CreateCheckBox(title, 10, scrY);
+                chkScr.Size = new Size(pnlScreensBox.Width - 24, 22);
                 chkScr.Tag = dev;
                 chkScr.Checked = Config.IsScreenSelected(dev);
                 chkScr.CheckedChanged += (s, e) => {
@@ -1586,12 +1620,13 @@ namespace PasteImageAsFile
                     SaveSelectedScreensFromUi();
                     SuperHubDockForm.SyncAllDocks();
                 };
+                chkScr.MouseWheel += (s, e) => ScrollScreens(e.Delta);
                 pnlScreensBox.Controls.Add(chkScr);
                 chkScreenList.Add(chkScr);
-                scrY += 19;
+                scrY += 25;
             }
-            if (scrY > 40) pnlScreensBox.Height = Math.Min(44, scrY + 2);
-            top += pnlScreensBox.Height + 5;
+            screensTotalContentH = scrY + 3;
+            top += pnlScreensBox.Height + 8;
 
             // Акцентный цвет SuperHub
             Label lblHubAccent = new Label
@@ -1895,6 +1930,41 @@ namespace PasteImageAsFile
             toolTip.SetToolTip(cmbSuperHubSens, "Ширина зоны приближения курсора к краю экрана для автоматического выдвижения полки");
             pnlPageSuperHub.Controls.Add(lblSens);
             pnlPageSuperHub.Controls.Add(cmbSuperHubSens);
+            top += step;
+
+            // 6. Автозакрытие при уводе мыши
+            Label lblAutoHide = new Label
+            {
+                Text = "Автозакрытие при уводе мыши:",
+                Font = new Font("Segoe UI Semibold", 9f),
+                Location = new Point(14, top + 4),
+                AutoSize = true
+            };
+            cmbSuperHubAutoHideDelay = CreateStyledComboBox(220, top, 230);
+            cmbSuperHubAutoHideDelay.Items.AddRange(new object[] {
+                "300 мс (Быстро)",
+                "500 мс (Стандартно)",
+                "800 мс (Умеренно)",
+                "1200 мс (Замедленно)",
+                "2000 мс (Долго)",
+                "Не скрывать автоматически"
+            });
+            cmbSuperHubAutoHideDelay.SelectedIndexChanged += (s, e) => {
+                if (isInitializingConfig) return;
+                switch (cmbSuperHubAutoHideDelay.SelectedIndex)
+                {
+                    case 0: Config.SuperHubAutoHideDelay = 300; break;
+                    case 1: Config.SuperHubAutoHideDelay = 500; break;
+                    case 2: Config.SuperHubAutoHideDelay = 800; break;
+                    case 3: Config.SuperHubAutoHideDelay = 1200; break;
+                    case 4: Config.SuperHubAutoHideDelay = 2000; break;
+                    case 5: Config.SuperHubAutoHideDelay = 0; break;
+                    default: Config.SuperHubAutoHideDelay = 500; break;
+                }
+            };
+            toolTip.SetToolTip(cmbSuperHubAutoHideDelay, "Время задержки перед автоматическим скрытием окна после отведения курсора мыши за пределы меню и маркера.");
+            pnlPageSuperHub.Controls.Add(lblAutoHide);
+            pnlPageSuperHub.Controls.Add(cmbSuperHubAutoHideDelay);
             top += step + 2;
 
             btnTestSuperHub = CreateButton("Раскрыть полку SuperHub сейчас", 14, top, 240, 26);
@@ -1922,6 +1992,21 @@ namespace PasteImageAsFile
             }
             Config.SuperHubSelectedScreens = string.Join("|", selected.ToArray());
             Config.SuperHubScreenMode = (selected.Count == Screen.AllScreens.Length) ? "All" : "Specific";
+        }
+
+        private void ScrollScreens(int delta)
+        {
+            if (pnlScreensBox == null) return;
+            int maxScroll = Math.Max(0, screensTotalContentH - pnlScreensBox.ClientSize.Height + 6);
+            if (maxScroll <= 0) return;
+            screensScrollY -= (delta / 120) * 25;
+            if (screensScrollY < 0) screensScrollY = 0;
+            if (screensScrollY > maxScroll) screensScrollY = maxScroll;
+            for (int i = 0; i < chkScreenList.Count; i++)
+            {
+                chkScreenList[i].Top = 5 + (i * 25) - screensScrollY;
+            }
+            pnlScreensBox.Invalidate();
         }
 
         private void UpdatePositionComboForCurrentScreen()
@@ -1988,6 +2073,23 @@ namespace PasteImageAsFile
                 }
             }
             catch {}
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using (var b = new SolidBrush(this.BackColor))
+            {
+                e.Graphics.FillRectangle(b, this.ClientRectangle);
+            }
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            if (this.Visible)
+            {
+                this.Invalidate(true);
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -2099,6 +2201,11 @@ namespace PasteImageAsFile
                 cmbSuperHubSens.BackColor = inputBg;
                 cmbSuperHubSens.ForeColor = text;
             }
+            if (cmbSuperHubAutoHideDelay != null)
+            {
+                cmbSuperHubAutoHideDelay.BackColor = inputBg;
+                cmbSuperHubAutoHideDelay.ForeColor = text;
+            }
             if (cmbSuperHubViewMode != null)
             {
                 cmbSuperHubViewMode.BackColor = inputBg;
@@ -2135,7 +2242,7 @@ namespace PasteImageAsFile
             }
             if (pnlScreensBox != null)
             {
-                pnlScreensBox.BackColor = isDark ? Color.FromArgb(38, 38, 38) : Color.FromArgb(242, 245, 250);
+                pnlScreensBox.BackColor = isDark ? Color.FromArgb(34, 34, 34) : Color.FromArgb(242, 245, 250);
                 pnlScreensBox.Invalidate();
             }
 
@@ -2382,6 +2489,17 @@ namespace PasteImageAsFile
                 else if (sens <= 75) cmbSuperHubSens.SelectedIndex = 1;
                 else if (sens <= 105) cmbSuperHubSens.SelectedIndex = 2;
                 else cmbSuperHubSens.SelectedIndex = 3;
+
+                int delay = Config.SuperHubAutoHideDelay;
+                if (cmbSuperHubAutoHideDelay != null)
+                {
+                    if (delay <= 0) cmbSuperHubAutoHideDelay.SelectedIndex = 5;
+                    else if (delay <= 350) cmbSuperHubAutoHideDelay.SelectedIndex = 0;
+                    else if (delay <= 650) cmbSuperHubAutoHideDelay.SelectedIndex = 1;
+                    else if (delay <= 1000) cmbSuperHubAutoHideDelay.SelectedIndex = 2;
+                    else if (delay <= 1600) cmbSuperHubAutoHideDelay.SelectedIndex = 3;
+                    else cmbSuperHubAutoHideDelay.SelectedIndex = 4;
+                }
             }
             finally
             {
