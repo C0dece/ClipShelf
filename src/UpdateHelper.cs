@@ -27,9 +27,9 @@ namespace PasteImageAsFile
     public static class UpdateHelper
     {
         public const string RepoOwner = "C0dece";
-        public const string RepoName = "PasteImageAsFile";
-        public const string GitHubApiLatestReleaseUrl = "https://api.github.com/repos/C0dece/PasteImageAsFile/releases/latest";
-        public const string GitHubLatestReleasePageUrl = "https://github.com/C0dece/PasteImageAsFile/releases/latest";
+        public const string RepoName = "ClipShelf";
+        public const string GitHubApiLatestReleaseUrl = "https://api.github.com/repos/C0dece/ClipShelf/releases/latest";
+        public const string GitHubLatestReleasePageUrl = "https://github.com/C0dece/ClipShelf/releases/latest";
 
         static UpdateHelper()
         {
@@ -70,7 +70,7 @@ namespace PasteImageAsFile
                 try
                 {
                     HttpWebRequest request = (HttpWebRequest)WebRequest.Create(GitHubApiLatestReleaseUrl);
-                    request.UserAgent = "PasteImageAsFile/" + ShellIntegration.AppVersion;
+                    request.UserAgent = "ClipShelf/" + ShellIntegration.AppVersion;
                     request.Accept = "application/vnd.github.v3+json";
                     request.Timeout = 7000;
                     request.ReadWriteTimeout = 7000;

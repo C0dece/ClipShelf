@@ -24,10 +24,16 @@
   - Снимок экрана под акрил ДО показа окна расширен на весь размер текущего монитора `Screen.FromPoint(screenLoc).Bounds` (1920x1080) с фиксацией `BackdropOrigin`.
   - В `ThemeHelper.DrawAcrylicBackground` добавлена очистка холста `g.Clear(Background)` и расчет координат относительно `flyout.BackdropOrigin`.
 
+- **Переименование репозитория GitHub в ClipShelf**:
+  - Репозиторий GitHub переименован: `https://github.com/C0dece/ClipShelf`.
+  - Удаленный git remote переключен на `https://github.com/C0dece/ClipShelf.git`.
+  - Все бейджи и ссылки в `README.md` и константы репозитория в `src/UpdateHelper.cs` переведены на `ClipShelf`.
+  - Бинарные ассеты релиза v1.8.0 на GitHub обновлены актуальными сборками.
+
 ## В процессе / Следующий шаг
-1. Релиз `v1.8.0` успешно опубликован на GitHub (тег `v1.8.0`, ассеты `ClipShelf.exe` и `PasteImageAsFile.exe`).
-2. Все коммиты синхронизированы с `origin/main`.
-3. Готово к дальнейшему развитию или новым фичам по запросу пользователя.
+1. Репозиторий на GitHub переименован в `ClipShelf` (`https://github.com/C0dece/ClipShelf`).
+2. Релиз `v1.8.0` опубликован и содержит актуальные бинарники `ClipShelf.exe` и `PasteImageAsFile.exe`.
+3. Все коммиты синхронизированы с `origin/main`.
 
 ## Архитектурные решения
 - **Очистка акрила в OnPaintBackground и Paint кнопок**: В окнах с `WS_EX_COMPOSITED` дочерние контролы с прозрачным фоном не должны пропускать очистку фона. Каждый контрол обязан закрашивать свой прямоугольник актуальным срезом акрила через `ThemeHelper.DrawAcrylicBackground`, что исключает накопление артефактов при ховерах и скролле.

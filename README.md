@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/C0dece/PasteImageAsFile/releases/latest">
-    <img src="https://img.shields.io/github/v/release/C0dece/PasteImageAsFile?style=flat-square&color=blue" alt="Release">
+  <a href="https://github.com/C0dece/ClipShelf/releases/latest">
+    <img src="https://img.shields.io/github/v/release/C0dece/ClipShelf?style=flat-square&color=blue" alt="Release">
   </a>
   <img src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/.NET_Framework-4.0-512BD4?style=flat-square" alt=".NET">
-  <img src="https://img.shields.io/github/license/C0dece/PasteImageAsFile?style=flat-square" alt="License">
-  <img src="https://img.shields.io/github/size/C0dece/PasteImageAsFile/dist/ClipShelf.exe?style=flat-square&label=exe%20size" alt="EXE size">
+  <img src="https://img.shields.io/github/license/C0dece/ClipShelf?style=flat-square" alt="License">
+  <img src="https://img.shields.io/github/size/C0dece/ClipShelf/dist/ClipShelf.exe?style=flat-square&label=exe%20size" alt="EXE size">
 </p>
 
 ---
@@ -65,7 +65,7 @@
 
 ## 🚀 Установка
 
-1. Скачай **`ClipShelf.exe`** из раздела [Releases](https://github.com/C0dece/PasteImageAsFile/releases/latest).
+1. Скачай **`ClipShelf.exe`** из раздела [Releases](https://github.com/C0dece/ClipShelf/releases/latest).
 2. Запусти файл — откроется окно управления и настроек.
 3. Нажми **"Установить"** для регистрации автозапуска и контекстного меню.
 
